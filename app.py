@@ -20,6 +20,7 @@ INFERENCE_INTERVAL_SECONDS = 0.20  # Target: 5 AI inference passes per second.
 
 from ai_guardian.audio.announcer import build_announcement, text_to_speech_audio
 from ai_guardian.vision.detector import Detection, ObjectDetector
+from ai_guardian.vision.ocr import read_text_from_image
 
 
 st.set_page_config(
@@ -90,15 +91,37 @@ with st.sidebar:
         help="Lower values may detect more objects but can increase false detections.",
     )
     speech_enabled = st.toggle("Automatic live voice", value=True, help="When enabled, new scene updates are converted to speech automatically.")
-    voice_labels = {
-        "en-US-AriaNeural": "Natural English — US (Aria)",
-        "en-GB-SoniaNeural": "Natural English — UK (Sonia)",
+    language_labels = {
+        "en": "English",
+        "ur": "اردو (Urdu)",
+        "ps": "پښتو (Pashto)",
     }
+    assistant_language = st.selectbox(
+        "Assistant language",
+        options=list(language_labels.keys()),
+        format_func=lambda code: language_labels[code],
+        index=0,
+        help="Changes spoken scene summaries and OCR reading language.",
+    )
+    voice_options = {
+        "en": {
+            "en-US-AriaNeural": "English — US (Aria)",
+            "en-GB-SoniaNeural": "English — UK (Sonia)",
+        },
+        "ur": {
+            "ur-PK-AsadNeural": "Urdu Pakistan — Asad",
+            "ur-PK-UzmaNeural": "Urdu Pakistan — Uzma",
+        },
+        "ps": {
+            "ps-AF-GulNawazNeural": "Pashto — Gul Nawaz",
+        },
+    }
+    voice_labels = voice_options[assistant_language]
     selected_voice = st.selectbox(
         "Speech voice",
         options=list(voice_labels.keys()),
         format_func=lambda voice: voice_labels[voice],
-        index=0,
+        key=f"speech_voice_{assistant_language}",
     )
     speech_rate = st.select_slider(
         "Speaking speed",
@@ -109,7 +132,11 @@ with st.sidebar:
     st.caption("Natural neural speech uses an internet connection. If unavailable, AI Guardian tries your computer’s offline voice.")
 
     if st.button("🔊 Test voice", use_container_width=True):
-        test_text = "Hello. AI Guardian voice test. If you can hear this clearly, speech is working."
+        test_text = {
+            "en": "Hello. AI Guardian voice test. If you can hear this clearly, speech is working.",
+            "ur": "السلام علیکم۔ یہ اے آئی گارڈین کی آواز کا امتحان ہے۔",
+            "ps": "سلام. دا د اې آی ګارډین د غږ ازموینه ده.",
+        }[assistant_language]
         try:
             audio, mime, engine_name = text_to_speech_audio(
                 test_text, selected_voice, rate_value
@@ -257,7 +284,7 @@ class LiveObjectDetector(VideoProcessorBase):
                     and cooldown_finished
                 ):
                     self.last_announcement = build_announcement(
-                        detections, frame_width
+                        detections, frame_width, language=assistant_language
                     )
                     self.announcement_id += 1
                     self.last_announcement_time = now
@@ -487,7 +514,9 @@ if camera_image is not None and st.button("Analyze and describe scene", type="pr
         bgr_image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         detector = load_detector(confidence)
         annotated, detections = detector.detect(bgr_image)
-        announcement = build_announcement(detections, bgr_image.shape[1])
+        announcement = build_announcement(
+            detections, bgr_image.shape[1], language=assistant_language
+        )
         st.image(annotated, channels="BGR", caption="Detected scene", use_container_width=True)
         st.subheader("Scene description")
         st.write(announcement)
@@ -496,3 +525,34 @@ if camera_image is not None and st.button("Analyze and describe scene", type="pr
         st.audio(audio, format=mime)
     except Exception as error:
         st.error("Scene analysis or speech failed: " + str(error))
+
+if camera_image is not None:
+    st.subheader("Read visible text")
+    st.caption("OCR works best with sharp, well-lit, printed text. Handwriting and decorative Nastaliq fonts may be less accurate.")
+    if st.button("📖 Read text aloud", use_container_width=True):
+        try:
+            import html
+            import numpy as np
+            from PIL import Image
+
+            ocr_rgb = np.array(Image.open(camera_image).convert("RGB"))
+            extracted_text = read_text_from_image(ocr_rgb, assistant_language)
+            if not extracted_text.strip():
+                st.warning("No readable text was found. Try moving the camera closer and improving the lighting.")
+            else:
+                if assistant_language in ("ur", "ps"):
+                    st.markdown(
+                        '<div dir="rtl" style="text-align:right;line-height:2;font-size:1.15rem;">'
+                        + html.escape(extracted_text).replace("\\n", "<br>")
+                        + "</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.text_area("Extracted text", extracted_text, height=180)
+                ocr_audio, ocr_mime, ocr_engine = text_to_speech_audio(
+                    extracted_text, selected_voice, rate_value
+                )
+                st.caption("OCR speech engine: " + ocr_engine)
+                st.audio(ocr_audio, format=ocr_mime)
+        except Exception as error:
+            st.error("Text reading failed: " + str(error))
