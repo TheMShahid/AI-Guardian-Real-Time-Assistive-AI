@@ -90,7 +90,9 @@ with st.sidebar:
             st.session_state["test_audio"] = audio
             st.session_state["test_audio_mime"] = mime
             st.session_state["test_audio_engine"] = engine_name
+            st.session_state["test_audio_error"] = ""
         except Exception as error:
+            st.session_state["test_audio"] = None
             st.session_state["test_audio_error"] = str(error)
 
     if st.session_state.get("test_audio"):
