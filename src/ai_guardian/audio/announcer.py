@@ -1,4 +1,4 @@
-"""Build listener-friendly scene descriptions and generate natural speech audio."""
+"""Build concise, prioritized scene descriptions and generate speech audio."""
 
 import asyncio
 from collections import Counter
@@ -7,6 +7,22 @@ from tempfile import TemporaryDirectory
 from typing import List, Optional, Sequence, Tuple
 
 from ai_guardian.vision.detector import Detection
+
+
+# These labels receive earlier mention because they are especially useful
+# for general visual awareness. This is not a hazard classification.
+_OBJECT_PRIORITY = {
+    "person": 0,
+    "car": 1,
+    "truck": 1,
+    "bus": 1,
+    "motorcycle": 1,
+    "bicycle": 2,
+    "traffic light": 3,
+    "stop sign": 3,
+    "dog": 4,
+    "cat": 4,
+}
 
 
 def _position(box, frame_width: int) -> str:
@@ -19,46 +35,67 @@ def _position(box, frame_width: int) -> str:
     return "centre"
 
 
+def _position_phrase(position: str) -> str:
+    return {
+        "left": "on your left",
+        "centre": "in the centre of your view",
+        "right": "on your right",
+    }[position]
+
+
 def build_announcement(
     detections: List[Detection],
     frame_width: int,
     tracked_detections: Optional[Sequence[dict]] = None,
 ) -> str:
-    """Create a short, structured spoken summary without a fixed object limit."""
+    """Create a short spoken summary ordered by general awareness value.
+
+    Positions describe only where objects appear in the camera image. They do
+    not indicate physical distance, danger, or collision risk.
+    """
     if not detections:
         return "I cannot identify any familiar objects in the camera view."
 
     grouped = Counter(
-        (item.label.replace("_", " "), _position(item.box, frame_width))
+        (item.label.replace("_", " ").lower(), _position(item.box, frame_width))
         for item in detections
     )
-    parts = []
-    for (label, position), count in sorted(grouped.items()):
-        if count == 1:
-            parts.append(f"{label} to the {position}")
-        else:
-            plural = label if label.endswith("s") else label + "s"
-            parts.append(f"{count} {plural} to the {position}")
 
-    if len(parts) == 1:
-        summary = f"I can see {parts[0]}."
-    elif len(parts) == 2:
-        summary = f"I can see {parts[0]} and {parts[1]}."
+    ordered = sorted(
+        grouped.items(),
+        key=lambda entry: (
+            _OBJECT_PRIORITY.get(entry[0][0], 10),
+            {"centre": 0, "left": 1, "right": 2}[entry[0][1]],
+            entry[0][0],
+        ),
+    )
+
+    # Keep spoken feedback concise. The visual dashboard still shows all detections.
+    spoken_groups = ordered[:4]
+    descriptions = []
+    for (label, position), count in spoken_groups:
+        object_name = label if count == 1 else (
+            label if label.endswith("s") else label + "s"
+        )
+        if count > 1:
+            object_name = f"{count} {object_name}"
+        descriptions.append(f"{object_name} {_position_phrase(position)}")
+
+    if len(descriptions) == 1:
+        sentence = f"I can see {descriptions[0]}."
+    elif len(descriptions) == 2:
+        sentence = f"I can see {descriptions[0]} and {descriptions[1]}."
     else:
-        summary = "I can see " + ", ".join(parts[:-1]) + f", and {parts[-1]}."
+        sentence = (
+            "I can see " + ", ".join(descriptions[:-1])
+            + f", and {descriptions[-1]}."
+        )
 
-    moving = []
-    seen_tracks = set()
-    for item in tracked_detections or ():
-        motion = item.get("motion", "stationary")
-        track_id = item.get("track_id")
-        if motion in ("moving left", "moving right") and track_id not in seen_tracks:
-            seen_tracks.add(track_id)
-            moving.append(f"a {item['label']} is moving {motion.split()[-1]} across the camera view")
+    remaining = len(ordered) - len(spoken_groups)
+    if remaining > 0:
+        sentence += f" There are also {remaining} other object groups in view."
 
-    if moving:
-        summary += " Movement in the camera view: " + "; ".join(moving) + "."
-    return summary
+    return sentence
 
 
 def _edge_tts_audio(text: str, voice: str, rate: str) -> bytes:
