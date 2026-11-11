@@ -12,7 +12,9 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 - Lazy-loads the Ultralytics model package when the live processor starts rather than during the initial page import.
 - Live browser camera streaming through WebRTC.
 - Object association across frames with ByteTrack.
-- Temporary track IDs and approximate left/right movement in image coordinates.
+- Temporary track IDs, approximate left/centre/right image position, and left/right image-plane movement.
+- A compact, centred live preview that displays the server-annotated video stream.
+- Input-frame conversion is skipped between throttled inference passes to reduce avoidable CPU work.
 - Live camera, processing, and detection status.
 - Configurable detection confidence.
 - Still-image scene analysis on demand.
@@ -130,7 +132,7 @@ Object labels, boxes       Temporary track IDs
 
 ## Roadmap
 
-1. Robust live camera and speech experience.
+1. Robust live camera and speech experience, including annotated preview and image-relative object positions.
 2. Temporal scene understanding and announcement scheduling.
 3. Depth-aware spatial awareness with explicit uncertainty.
 4. Hazard-awareness research and controlled evaluation.
