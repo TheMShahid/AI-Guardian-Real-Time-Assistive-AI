@@ -4,23 +4,39 @@ AI Guardian is a camera-based assistive visual intelligence prototype designed t
 
 ## Current implementation
 
-### Feature 1 — Object detection
+### Feature 1 — Live object detection
 - YOLOv8 nano object detector
 - OpenCV local webcam runner for continuous inference
 - Streamlit WebRTC live camera detection with annotated video
-- Object labels, confidence scores, and bounding boxes
+- Configurable detection confidence
+- Live status panel with processed-frame count, latest detections, and pipeline errors
 
 ### Feature 2 — Spoken object announcements
 - Text-to-speech using the computer's installed system voice (pyttsx3)
-- Short spoken summaries from a captured image
-- Approximate horizontal image position: left, centre, or right
+- Snapshot-based spoken scene summaries
+- Live scene announcements when the detected object/position set changes
+- Seven-second minimum announcement interval to reduce repetitive speech
+- Left, centre, and right refer only to horizontal image position
 
-### Streamlit interface
-The Streamlit app provides a continuous webcam detection panel using `streamlit-webrtc`. It also provides a separate still-image capture workflow for generating a spoken summary. Continuous spoken announcements on every live frame are not enabled yet; duplicate suppression and announcement timing need to be implemented before that is appropriate.
+## Streamlit interface
+
+Run:
+
+```bash
+streamlit run app.py
+```
+
+Press START in the live video panel and allow camera access. The returning video should show YOLO bounding boxes. The live status panel refreshes once per second and reports whether frames are reaching the detector. The sidebar confidence slider controls the minimum detection confidence; lower values can increase detections and false positives.
+
+The live voice feature is rate-limited and announces changed detection scenes. Browser autoplay policies may require the user to start audio playback. The separate snapshot workflow remains available for an on-demand spoken summary.
+
+For local OpenCV camera detection (visual output only):
+
+```bash
+python run_camera.py
+```
 
 ## Setup
-
-Create and activate a virtual environment, then install dependencies:
 
 ```bash
 python -m venv .venv
@@ -31,20 +47,6 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
-
-Run the Streamlit interface:
-
-```bash
-streamlit run app.py
-```
-
-Run the continuous local webcam detector (visual output only):
-
-```bash
-python run_camera.py
-```
-
-The first run downloads the YOLO model weights automatically. Allow camera access in your browser. WebRTC camera access generally requires localhost or a secure HTTPS connection.
 
 ## Technology foundation
 
@@ -60,4 +62,4 @@ AI Guardian is an assistive awareness prototype, not a certified mobility aid. O
 
 ## Development approach
 
-Features are implemented incrementally and tested independently. Next milestones include controlled speech announcements for live detections, duplicate-announcement suppression, object tracking, richer scene context, and evaluation on target edge hardware.
+Features are implemented incrementally and tested independently. Next milestones include object tracking, temporal scene understanding, more robust speech scheduling, spatial reasoning, and evaluation on target edge hardware.
