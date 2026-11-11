@@ -27,19 +27,26 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .block-container {max-width: 1440px; padding-top: 1.4rem; padding-bottom: 3rem;}
-    h1 {font-size: 2.35rem !important; letter-spacing: -0.03em;}
-    h2 {font-size: 1.45rem !important;}
+    .block-container {max-width: 1480px; padding-top: 1.6rem; padding-bottom: 3.5rem;}
+    h1 {font-size: 2.55rem !important; letter-spacing: -0.04em; font-weight: 750 !important;}
+    h2 {font-size: 1.42rem !important; font-weight: 680 !important;}
     h3 {font-size: 1.12rem !important;}
     [data-testid="stMetric"] {
-        background: rgba(120, 140, 160, 0.10);
-        border: 1px solid rgba(120, 140, 160, 0.25);
-        padding: 0.8rem 1rem; border-radius: 0.8rem;
+        background: rgba(120, 140, 160, 0.08);
+        border: 1px solid rgba(120, 140, 160, 0.22);
+        padding: 1rem 1.1rem; border-radius: 1rem;
+        box-shadow: 0 3px 14px rgba(0,0,0,.035);
     }
+    [data-testid="stMetricLabel"] {font-size: .82rem;}
+    [data-testid="stMetricValue"] {font-weight: 720;}
+    [data-testid="stVerticalBlockBorderWrapper"] {border-radius: 1rem;}
     [data-testid="stButton"] button {min-height: 2.8rem; font-weight: 600;}
     [data-testid="stAudio"] {width: 100%;}
-    .ag-subtitle {font-size: 1.05rem; opacity: .82; margin-top: -.5rem;}
+    .ag-subtitle {font-size: 1.08rem; opacity: .82; margin-top: -.5rem;}
     .ag-note {font-size: .9rem; opacity: .78;}
+    .ag-hero {padding: 1.15rem 1.35rem; border: 1px solid rgba(120,140,160,.24); border-radius: 1rem; background: linear-gradient(120deg, rgba(80,120,160,.10), rgba(80,160,140,.055)); margin: .8rem 0 1.3rem 0;}
+    .ag-kicker {font-size:.76rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; opacity:.72;}
+    .ag-hero-copy {font-size:.98rem; opacity:.86; margin-top:.35rem;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -50,7 +57,10 @@ st.markdown(
     '<div class="ag-subtitle">Real-time visual awareness and voice assistance</div>',
     unsafe_allow_html=True,
 )
-st.write("Understand selected objects and their positions through your camera and spoken feedback.")
+st.markdown(
+    '<div class="ag-hero"><div class="ag-kicker">Your real-time visual companion</div><div class="ag-hero-copy">AI Guardian detects familiar objects, tracks their image movement, and speaks concise scene updates while your camera is live.</div></div>',
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
     st.header("⚙️ Assistant settings")
@@ -62,7 +72,7 @@ with st.sidebar:
         step=0.05,
         help="Lower values may detect more objects but can increase false detections.",
     )
-    speech_enabled = st.toggle("Live voice announcements", value=True)
+    speech_enabled = st.toggle("Automatic live voice", value=True, help="When enabled, new scene updates are converted to speech automatically.")
     voice_labels = {
         "en-US-AriaNeural": "Natural English — US (Aria)",
         "en-GB-SoniaNeural": "Natural English — UK (Sonia)",
@@ -79,7 +89,7 @@ with st.sidebar:
         value="Slow",
     )
     rate_value = {"Slow": "-12%", "Normal": "-5%", "Fast": "+5%"}[speech_rate]
-    st.caption("Natural neural speech needs an internet connection. Offline system speech is used if it is unavailable.")
+    st.caption("Natural neural speech uses an internet connection. If unavailable, AI Guardian tries your computer’s offline voice.")
 
     if st.button("🔊 Test voice", use_container_width=True):
         test_text = "Hello. AI Guardian voice test. If you can hear this clearly, speech is working."
@@ -223,8 +233,8 @@ class LiveObjectDetector(VideoProcessorBase):
 
 
 st.divider()
-st.header("Live camera")
-st.caption("Select START, allow camera access, and keep the objects in view.")
+st.header("Live visual assistant")
+st.caption("Start the camera once and allow access. Automatic voice is enabled by default; keep this page open while the assistant observes the scene.")
 ctx = webrtc_streamer(
     key="ai-guardian-live-camera-v4",
     mode=WebRtcMode.SENDRECV,
@@ -303,8 +313,9 @@ def live_status_panel():
             st.audio(
                 st.session_state["latest_audio"],
                 format=st.session_state["latest_audio_mime"],
+                autoplay=True,
             )
-            st.caption("Press Play to hear the full announcement. Browser autoplay is intentionally not relied upon.")
+            st.caption("New scene announcements play automatically when your browser permits autoplay. If playback is blocked, press Play once to enable audio.")
         elif st.session_state.get("latest_audio_error"):
             st.error("Speech generation failed: " + st.session_state["latest_audio_error"])
 
