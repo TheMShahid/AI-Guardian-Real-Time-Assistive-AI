@@ -2,3 +2,6 @@ libgl1
 libglib2.0-0
 espeak
 libespeak1
+tesseract-ocr
+tesseract-ocr-urd
+tesseract-ocr-pus
