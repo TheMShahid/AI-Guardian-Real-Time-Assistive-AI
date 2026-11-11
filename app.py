@@ -267,29 +267,71 @@ class LiveObjectDetector(VideoProcessorBase):
             }
 
 
-def build_rtc_configuration():
-    """Build WebRTC ICE configuration with optional TURN credentials.
+@st.cache_data(show_spinner=False, ttl=21600)
+def fetch_cloudflare_ice_servers(turn_key_id: str, turn_key_api_token: str):
+    """Request temporary TURN credentials from Cloudflare; never expose API secrets."""
+    import requests
 
-    Add TURN_URLS, TURN_USERNAME, and TURN_CREDENTIAL to Streamlit Cloud
-    Secrets when a TURN provider is configured. Secrets are never logged.
+    endpoint = (
+        "https://rtc.live.cloudflare.com/v1/turn/keys/"
+        f"{turn_key_id}/credentials/generate-ice-servers"
+    )
+    response = requests.post(
+        endpoint,
+        headers={
+            "Authorization": f"Bearer {turn_key_api_token}",
+            "Content-Type": "application/json",
+        },
+        json={"ttl": 86400},
+        timeout=8,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    servers = payload.get("iceServers", [])
+    # Port 53 is commonly blocked by browsers and some networks.
+    for server in servers:
+        urls = server.get("urls", [])
+        if isinstance(urls, str):
+            urls = [urls]
+        server["urls"] = [
+            url for url in urls
+            if ":53" not in url
+        ]
+    return [server for server in servers if server.get("urls")]
+
+
+def build_rtc_configuration():
+    """Build ICE configuration using Cloudflare TURN when configured.
+
+    Streamlit secrets:
+      CF_TURN_KEY_ID = "..."
+      CF_TURN_API_TOKEN = "..."
+
+    The long-lived API token stays on the server. Temporary ICE credentials
+    are passed to the browser and expire after 24 hours.
     """
-    ice_servers = [
-        {"urls": ["stun:stun.l.google.com:19302"]},
-    ]
+    ice_servers = [{"urls": ["stun:stun.cloudflare.com:3478"]}]
     try:
-        turn_urls = st.secrets.get("TURN_URLS", [])
-        turn_username = st.secrets.get("TURN_USERNAME", "")
-        turn_credential = st.secrets.get("TURN_CREDENTIAL", "")
-        if isinstance(turn_urls, str):
-            turn_urls = [turn_urls]
-        if turn_urls and turn_username and turn_credential:
-            ice_servers.append({
-                "urls": list(turn_urls),
-                "username": turn_username,
-                "credential": turn_credential,
-            })
+        key_id = st.secrets.get("CF_TURN_KEY_ID", "")
+        api_token = st.secrets.get("CF_TURN_API_TOKEN", "")
+        if key_id and api_token:
+            try:
+                turn_servers = fetch_cloudflare_ice_servers(key_id, api_token)
+                ice_servers.extend(turn_servers)
+            except Exception as error:
+                # Keep STUN available if TURN credential generation is unavailable.
+                st.warning(
+                    "TURN relay credentials could not be refreshed. "
+                    "Trying the camera connection with STUN only. "
+                    f"Details: {type(error).__name__}"
+                )
+        else:
+            st.info(
+                "TURN relay is not configured yet. Camera streaming will try "
+                "the STUN connection; some networks may require TURN."
+            )
     except Exception:
-        # Local development does not require a secrets file.
+        # Local development may not have a Streamlit secrets file.
         pass
     return {"iceServers": ice_servers}
 
@@ -312,6 +354,7 @@ ctx = webrtc_streamer(
     # STUN is required for browser-to-cloud WebRTC connectivity.
     # Some restrictive networks may additionally require TURN credentials.
     rtc_configuration=build_rtc_configuration(),
+    media_toggle_controls=False,
     async_processing=True,
     desired_playing_state=False,
 )
