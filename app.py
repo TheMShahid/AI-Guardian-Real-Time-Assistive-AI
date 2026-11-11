@@ -47,6 +47,18 @@ st.markdown(
     [data-testid="stVerticalBlockBorderWrapper"] {border-radius: 1rem;}
     [data-testid="stButton"] button {min-height: 2.8rem; font-weight: 600;}
     [data-testid="stAudio"] {width: 100%;}
+    [data-testid="stWebRtc"] {
+        width: 100%; max-width: 100%; overflow: hidden;
+        border: 1px solid rgba(120, 140, 160, .28);
+        border-radius: 1rem; padding: .65rem;
+        background: rgba(100, 120, 145, .055);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, .07);
+    }
+    [data-testid="stWebRtc"] video {
+        width: 100% !important; max-height: 420px !important;
+        object-fit: contain !important; border-radius: .7rem;
+        background: #101722;
+    }
     .ag-subtitle {font-size: 1.08rem; opacity: .82; margin-top: -.5rem;}
     .ag-note {font-size: .9rem; opacity: .78;}
     .ag-hero {padding: 1.15rem 1.35rem; border: 1px solid rgba(120,140,160,.24); border-radius: 1rem; background: linear-gradient(120deg, rgba(80,120,160,.10), rgba(80,160,140,.055)); margin: .8rem 0 1.3rem 0;}
@@ -151,11 +163,10 @@ class LiveObjectDetector(VideoProcessorBase):
         self.error = ""
 
     def recv(self, frame):
-        image = frame.to_ndarray(format="bgr24")
         now = time.monotonic()
 
-        # WebRTC can deliver more frames than a cloud CPU can infer on.
-        # Reuse the most recent annotated frame between inference passes.
+        # Throttle before converting the incoming frame to a NumPy array.
+        # This avoids repeated colour-buffer conversions between AI passes.
         if (
             self.last_annotated_frame is not None
             and now - self.last_inference_time < INFERENCE_INTERVAL_SECONDS
@@ -164,9 +175,12 @@ class LiveObjectDetector(VideoProcessorBase):
                 self.last_annotated_frame, format="bgr24"
             )
 
+        image = frame.to_ndarray(format="bgr24")
         try:
-            annotated, tracked = self.detector.track(image)
+            # Set the throttle timestamp before inference so repeated model
+            # errors cannot trigger an inference attempt on every video frame.
             self.last_inference_time = now
+            annotated, tracked = self.detector.track(image)
             self.last_annotated_frame = annotated.copy()
             frame_width = image.shape[1]
             track_rows = []
@@ -175,6 +189,11 @@ class LiveObjectDetector(VideoProcessorBase):
             for item in tracked:
                 x1, _, x2, _ = item.box
                 centre_x = (x1 + x2) / 2
+                image_position = (
+                    "left" if centre_x < frame_width * 0.35
+                    else "right" if centre_x > frame_width * 0.65
+                    else "centre"
+                )
                 previous = self.previous_centres.get(item.track_id)
                 motion = "stationary"
                 if previous is not None:
@@ -195,6 +214,7 @@ class LiveObjectDetector(VideoProcessorBase):
                     "label": item.label,
                     "confidence": round(item.confidence, 3),
                     "box": item.box,
+                    "position": image_position,
                     "motion": motion,
                 })
 
@@ -338,27 +358,30 @@ def build_rtc_configuration():
 
 st.divider()
 st.header("Live visual assistant")
-st.caption("Start the camera once and allow access. Automatic voice is enabled by default. Cloud camera streaming uses WebRTC; a STUN server is configured, while restrictive networks may require TURN credentials.")
-ctx = webrtc_streamer(
-    # A fresh component key resets any stale browser-side WebRTC session state.
-    key="ai-guardian-live-camera-v5",
-    # This feature only sends camera video to the server; it does not need a
-    # server-to-browser media track or microphone capture.
-    mode=WebRtcMode.SENDONLY,
-    video_processor_factory=LiveObjectDetector,
-    media_stream_constraints={
-        "video": {
-            "width": {"ideal": 640},
-            "height": {"ideal": 480},
-            "frameRate": {"ideal": 15, "max": 20},
+st.caption("Start the camera and allow access. The preview displays AI-annotated video; object positions are relative to the camera image.")
+# Keep the live preview visually focused instead of stretching it across the page.
+_camera_left, camera_center, _camera_right = st.columns([1, 3, 1], gap="small")
+with camera_center:
+    ctx = webrtc_streamer(
+        # A fresh component key resets any stale browser-side WebRTC session state.
+        key="ai-guardian-live-camera-v6",
+        # SENDRECV is required: the browser sends camera frames and receives
+        # the server's annotated frames with YOLO boxes and labels.
+        mode=WebRtcMode.SENDRECV,
+        video_processor_factory=LiveObjectDetector,
+        media_stream_constraints={
+            "video": {
+                "width": {"ideal": 640},
+                "height": {"ideal": 480},
+                "frameRate": {"ideal": 15, "max": 20},
+            },
+            "audio": False,
         },
-        "audio": False,
-    },
-    # STUN is required for browser-to-cloud WebRTC connectivity.
-    # Some restrictive networks may additionally require TURN credentials.
-    rtc_configuration=build_rtc_configuration(),
-    async_processing=True,
-)
+        # STUN is required for browser-to-cloud WebRTC connectivity.
+        # Some restrictive networks may additionally require TURN credentials.
+        rtc_configuration=build_rtc_configuration(),
+        async_processing=True,
+    )
 
 st.header("Live assistant status")
 
@@ -395,6 +418,7 @@ def live_status_panel():
                     "ID": row["track_id"],
                     "Object": row["label"].replace("_", " ").title(),
                     "Confidence": f'{row["confidence"]:.0%}',
+                    "Image position": row["position"].title(),
                     "Image movement": row["motion"].title(),
                 }
                 for row in status["tracks"]
