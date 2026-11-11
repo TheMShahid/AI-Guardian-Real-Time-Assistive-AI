@@ -310,7 +310,7 @@ def build_rtc_configuration():
     The long-lived API token stays on the server. Temporary ICE credentials
     are passed to the browser and expire after 24 hours.
     """
-    ice_servers = [{"urls": ["stun:stun.cloudflare.com:3478"]}]
+    ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
     try:
         key_id = st.secrets.get("CF_TURN_KEY_ID", "")
         api_token = st.secrets.get("CF_TURN_API_TOKEN", "")
@@ -354,7 +354,6 @@ ctx = webrtc_streamer(
     # STUN is required for browser-to-cloud WebRTC connectivity.
     # Some restrictive networks may additionally require TURN credentials.
     rtc_configuration=build_rtc_configuration(),
-    media_toggle_controls=False,
     async_processing=True,
     desired_playing_state=False,
 )
