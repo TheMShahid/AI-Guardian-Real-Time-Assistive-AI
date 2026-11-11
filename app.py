@@ -355,7 +355,6 @@ ctx = webrtc_streamer(
     # Some restrictive networks may additionally require TURN credentials.
     rtc_configuration=build_rtc_configuration(),
     async_processing=True,
-    desired_playing_state=False,
 )
 
 st.header("Live assistant status")
