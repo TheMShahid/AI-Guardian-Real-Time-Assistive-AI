@@ -137,6 +137,8 @@ class LiveObjectDetector(VideoProcessorBase):
         self.announcement_id = 0
         self.last_announcement_time = 0.0
         self.last_signature = None
+        self.pending_signature = None
+        self.pending_signature_since = 0.0
         self.previous_centres = {}
         self.last_seen = {}
         self.error = ""
@@ -197,12 +199,25 @@ class LiveObjectDetector(VideoProcessorBase):
                 self.last_tracks = track_rows
                 self.error = ""
 
+                # A scene must remain stable briefly before it is announced.
+                # This filters detector flicker and small frame-to-frame changes.
+                if signature != self.pending_signature:
+                    self.pending_signature = signature
+                    self.pending_signature_since = now
+
+                scene_stable = now - self.pending_signature_since >= 1.5
                 scene_changed = signature != self.last_signature
-                cooldown_finished = now - self.last_announcement_time >= 8.0
-                if speech_enabled and tracked and scene_changed and cooldown_finished:
-                    moving = [row for row in track_rows if row["motion"] != "stationary"]
+                cooldown_finished = now - self.last_announcement_time >= 6.0
+
+                if (
+                    speech_enabled
+                    and tracked
+                    and scene_changed
+                    and scene_stable
+                    and cooldown_finished
+                ):
                     self.last_announcement = build_announcement(
-                        detections, frame_width, moving
+                        detections, frame_width
                     )
                     self.announcement_id += 1
                     self.last_announcement_time = now
@@ -234,7 +249,7 @@ class LiveObjectDetector(VideoProcessorBase):
 
 st.divider()
 st.header("Live visual assistant")
-st.caption("Start the camera once and allow access. Automatic voice is enabled by default; keep this page open while the assistant observes the scene.")
+st.caption("Start the camera once and allow access. Automatic voice is enabled by default. AI Guardian waits for a stable scene before speaking and prioritizes selected object categories.")
 ctx = webrtc_streamer(
     key="ai-guardian-live-camera-v4",
     mode=WebRtcMode.SENDRECV,
@@ -315,7 +330,7 @@ def live_status_panel():
                 format=st.session_state["latest_audio_mime"],
                 autoplay=True,
             )
-            st.caption("New scene announcements play automatically when your browser permits autoplay. If playback is blocked, press Play once to enable audio.")
+            st.caption("Speech is generated for stable scene changes, not every video frame. Browser autoplay restrictions may require one initial Play action.")
         elif st.session_state.get("latest_audio_error"):
             st.error("Speech generation failed: " + st.session_state["latest_audio_error"])
 
