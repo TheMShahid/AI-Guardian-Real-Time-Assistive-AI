@@ -1,9 +1,7 @@
 """YOLO-based object detection and persistent object tracking."""
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
-
-from ultralytics import YOLO
+from typing import List, Tuple
 
 
 @dataclass(frozen=True)
@@ -29,14 +27,25 @@ class ObjectDetector:
         self,
         model_name: str = "yolov8n.pt",
         confidence: float = 0.35,
-        image_size: int = 640,
+        image_size: int = 416,
     ) -> None:
         if not 0.0 < confidence <= 1.0:
             raise ValueError("confidence must be greater than 0 and at most 1")
+        if image_size < 320 or image_size > 1280:
+            raise ValueError("image_size must be between 320 and 1280")
+
+        # Lazy import keeps Streamlit's initial page load lighter.
+        from ultralytics import YOLO
 
         self.model = YOLO(model_name)
         self.confidence = confidence
         self.image_size = image_size
+
+        # Fuse Conv/BatchNorm layers where supported for faster inference.
+        try:
+            self.model.fuse()
+        except (AttributeError, RuntimeError):
+            pass
 
     @staticmethod
     def _validate_frame(frame) -> None:
@@ -52,6 +61,7 @@ class ObjectDetector:
             source=frame,
             conf=self.confidence,
             imgsz=self.image_size,
+            max_det=50,
             verbose=False,
         )[0]
 
@@ -80,6 +90,7 @@ class ObjectDetector:
             tracker="bytetrack.yaml",
             conf=self.confidence,
             imgsz=self.image_size,
+            max_det=50,
             verbose=False,
         )[0]
 
