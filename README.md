@@ -7,7 +7,9 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 ## Product capabilities
 
 ### Live visual awareness
-- YOLOv8 nano object detection.
+- YOLOv8 nano object detection, using a 416-pixel inference size by default.
+- Cloud-friendly inference throttling targets up to 5 AI inference passes per second; intermediate camera frames reuse the latest annotated result.
+- Lazy-loads the Ultralytics model package when the live processor starts rather than during the initial page import.
 - Live browser camera streaming through WebRTC.
 - Object association across frames with ByteTrack.
 - Temporary track IDs and approximate left/right movement in image coordinates.
@@ -17,6 +19,7 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 
 ### Intelligent voice assistant
 - Neural speech through Edge TTS with offline pyttsx3 fallback.
+- Live speech synthesis runs in a background worker so network delays do not block the status interface.
 - Selectable English US and UK voices.
 - Adjustable speaking speed.
 - General awareness categories are prioritized in concise scene summaries.
@@ -32,7 +35,7 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 
 ## Run locally
 
-Use Python 3.11 or 3.12 for a consistent development environment.
+Use Python 3.11 or 3.12 for a consistent development environment. The cloud-oriented dependency set uses headless OpenCV to avoid installing desktop GUI components.
 
 ~~~bash
 python -m venv .venv
@@ -75,7 +78,7 @@ Replace the example values with credentials from your TURN provider. Do not comm
 
 ### Cloud deployment limitations
 
-- Community Cloud is a shared environment. Model loading and live inference may be slower than on a capable local computer.
+- Community Cloud is a shared environment. Model loading and live inference may be slower than on a capable local computer. Inference is deliberately throttled to reduce CPU pressure, so the annotated preview is not guaranteed to update at the camera's full frame rate.
 - YOLO model weights are downloaded by Ultralytics on first use; the first camera start may take longer.
 - Browser camera permission and a working WebRTC network path are required.
 - A TURN service may be necessary on restrictive networks. TURN credentials are not bundled with this repository.
