@@ -249,14 +249,28 @@ class LiveObjectDetector(VideoProcessorBase):
 
 st.divider()
 st.header("Live visual assistant")
-st.caption("Start the camera once and allow access. Automatic voice is enabled by default. AI Guardian waits for a stable scene before speaking and prioritizes selected object categories.")
+st.caption("Start the camera once and allow access. Automatic voice is enabled by default. Cloud camera streaming uses WebRTC; a STUN server is configured, while restrictive networks may require TURN credentials.")
 ctx = webrtc_streamer(
     key="ai-guardian-live-camera-v4",
     mode=WebRtcMode.SENDRECV,
     video_processor_factory=LiveObjectDetector,
-    media_stream_constraints={"video": True, "audio": False},
+    media_stream_constraints={
+        "video": {
+            "width": {"ideal": 640},
+            "height": {"ideal": 480},
+            "frameRate": {"ideal": 15, "max": 20},
+        },
+        "audio": False,
+    },
+    # STUN is required for browser-to-cloud WebRTC connectivity.
+    # Some restrictive networks may additionally require TURN credentials.
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+        ]
+    },
     async_processing=True,
-    desired_playing_state=True,
+    desired_playing_state=False,
 )
 
 st.header("Live assistant status")
