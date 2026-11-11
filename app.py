@@ -3,6 +3,7 @@
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import av
@@ -12,6 +13,10 @@ from streamlit_webrtc import WebRtcMode, VideoProcessorBase, webrtc_streamer
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+# A single background worker keeps network-based speech generation off the UI thread.
+SPEECH_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ai-guardian-tts")
+INFERENCE_INTERVAL_SECONDS = 0.20  # Target: 5 AI inference passes per second.
 
 from ai_guardian.audio.announcer import build_announcement, text_to_speech_audio
 from ai_guardian.vision.detector import Detection, ObjectDetector
@@ -141,13 +146,28 @@ class LiveObjectDetector(VideoProcessorBase):
         self.pending_signature_since = 0.0
         self.previous_centres = {}
         self.last_seen = {}
+        self.last_inference_time = 0.0
+        self.last_annotated_frame = None
         self.error = ""
 
     def recv(self, frame):
         image = frame.to_ndarray(format="bgr24")
+        now = time.monotonic()
+
+        # WebRTC can deliver more frames than a cloud CPU can infer on.
+        # Reuse the most recent annotated frame between inference passes.
+        if (
+            self.last_annotated_frame is not None
+            and now - self.last_inference_time < INFERENCE_INTERVAL_SECONDS
+        ):
+            return av.VideoFrame.from_ndarray(
+                self.last_annotated_frame, format="bgr24"
+            )
+
         try:
             annotated, tracked = self.detector.track(image)
-            now = time.monotonic()
+            self.last_inference_time = now
+            self.last_annotated_frame = annotated.copy()
             frame_width = image.shape[1]
             track_rows = []
             detections = []
@@ -299,7 +319,7 @@ ctx = webrtc_streamer(
 st.header("Live assistant status")
 
 
-@st.fragment(run_every="1s")
+@st.fragment(run_every="2s")
 def live_status_panel():
     processor = ctx.video_processor
     if processor is None:
@@ -346,16 +366,28 @@ def live_status_panel():
     ):
         st.session_state["last_live_audio_id"] = status["announcement_id"]
         st.session_state["latest_spoken_text"] = status["announcement"]
+        st.session_state["latest_audio"] = None
+        st.session_state["latest_audio_error"] = ""
+        st.session_state["speech_future"] = SPEECH_EXECUTOR.submit(
+            text_to_speech_audio,
+            status["announcement"],
+            selected_voice,
+            rate_value,
+        )
+
+    # Poll the worker without blocking the Streamlit fragment.
+    speech_future = st.session_state.get("speech_future")
+    if speech_future is not None and speech_future.done():
         try:
-            audio, mime, engine_name = render_speech(
-                status["announcement"], selected_voice, rate_value
-            )
+            audio, mime, engine_name = speech_future.result()
             st.session_state["latest_audio"] = audio
             st.session_state["latest_audio_mime"] = mime
             st.session_state["latest_audio_engine"] = engine_name
             st.session_state["latest_audio_error"] = ""
         except Exception as error:
             st.session_state["latest_audio_error"] = str(error)
+        finally:
+            st.session_state["speech_future"] = None
 
     if st.session_state.get("latest_spoken_text"):
         st.subheader("Latest spoken description")
