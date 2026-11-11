@@ -23,7 +23,7 @@ def _position(box, frame_width: int) -> str:
 def build_announcement(
     detections: List[Detection],
     frame_width: int,
-    tracked_detections: Optional[Sequence[TrackedDetection]] = None,
+    tracked_detections: Optional[Sequence[dict]] = None,
 ) -> str:
     """Describe every detected object category and useful tracked movement.
 
@@ -52,9 +52,10 @@ def build_announcement(
 
     moving = []
     for item in tracked_detections or ():
-        if getattr(item, "motion", "stationary") in ("moving left", "moving right"):
+        motion = item.get("motion", "stationary")
+        if motion in ("moving left", "moving right"):
             moving.append(
-                f"{item.label} number {item.track_id} is moving {item.motion.split()[-1]} in the camera view"
+                f'{item["label"]} number {item["track_id"]} is moving {motion.split()[-1]} in the camera view'
             )
 
     if moving:
