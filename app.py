@@ -340,8 +340,11 @@ st.divider()
 st.header("Live visual assistant")
 st.caption("Start the camera once and allow access. Automatic voice is enabled by default. Cloud camera streaming uses WebRTC; a STUN server is configured, while restrictive networks may require TURN credentials.")
 ctx = webrtc_streamer(
-    key="ai-guardian-live-camera-v4",
-    mode=WebRtcMode.SENDRECV,
+    # A fresh component key resets any stale browser-side WebRTC session state.
+    key="ai-guardian-live-camera-v5",
+    # This feature only sends camera video to the server; it does not need a
+    # server-to-browser media track or microphone capture.
+    mode=WebRtcMode.SENDONLY,
     video_processor_factory=LiveObjectDetector,
     media_stream_constraints={
         "video": {
