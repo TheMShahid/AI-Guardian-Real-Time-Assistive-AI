@@ -247,6 +247,33 @@ class LiveObjectDetector(VideoProcessorBase):
             }
 
 
+def build_rtc_configuration():
+    """Build WebRTC ICE configuration with optional TURN credentials.
+
+    Add TURN_URLS, TURN_USERNAME, and TURN_CREDENTIAL to Streamlit Cloud
+    Secrets when a TURN provider is configured. Secrets are never logged.
+    """
+    ice_servers = [
+        {"urls": ["stun:stun.l.google.com:19302"]},
+    ]
+    try:
+        turn_urls = st.secrets.get("TURN_URLS", [])
+        turn_username = st.secrets.get("TURN_USERNAME", "")
+        turn_credential = st.secrets.get("TURN_CREDENTIAL", "")
+        if isinstance(turn_urls, str):
+            turn_urls = [turn_urls]
+        if turn_urls and turn_username and turn_credential:
+            ice_servers.append({
+                "urls": list(turn_urls),
+                "username": turn_username,
+                "credential": turn_credential,
+            })
+    except Exception:
+        # Local development does not require a secrets file.
+        pass
+    return {"iceServers": ice_servers}
+
+
 st.divider()
 st.header("Live visual assistant")
 st.caption("Start the camera once and allow access. Automatic voice is enabled by default. Cloud camera streaming uses WebRTC; a STUN server is configured, while restrictive networks may require TURN credentials.")
@@ -264,11 +291,7 @@ ctx = webrtc_streamer(
     },
     # STUN is required for browser-to-cloud WebRTC connectivity.
     # Some restrictive networks may additionally require TURN credentials.
-    rtc_configuration={
-        "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-        ]
-    },
+    rtc_configuration=build_rtc_configuration(),
     async_processing=True,
     desired_playing_state=False,
 )
