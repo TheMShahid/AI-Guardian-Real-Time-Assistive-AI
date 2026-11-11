@@ -63,15 +63,16 @@ with st.sidebar:
         help="Lower values may detect more objects but can increase false detections.",
     )
     speech_enabled = st.toggle("Live voice announcements", value=True)
-    voice_choice = st.selectbox(
+    voice_labels = {
+        "en-US-AriaNeural": "Natural English — US (Aria)",
+        "en-GB-SoniaNeural": "Natural English — UK (Sonia)",
+    }
+    selected_voice = st.selectbox(
         "Speech voice",
-        options={
-            "Natural English — US (Aria)": "en-US-AriaNeural",
-            "Natural English — UK (Sonia)": "en-GB-SoniaNeural",
-        },
+        options=list(voice_labels.keys()),
+        format_func=lambda voice: voice_labels[voice],
         index=0,
     )
-    selected_voice = voice_choice
     speech_rate = st.select_slider(
         "Speaking speed",
         options=["Slow", "Normal", "Fast"],
