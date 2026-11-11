@@ -18,11 +18,16 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 - Live camera, processing, and detection status.
 - Configurable detection confidence.
 - Still-image scene analysis on demand.
+- OCR text reading from camera snapshots using Tesseract for English, Urdu, and Pashto printed text.
+- Extracted text is displayed and read aloud in the selected assistant language.
 
-### Intelligent voice assistant
-- Neural speech through Edge TTS with offline pyttsx3 fallback.
+### Multilingual visual and voice assistance
+- Assistant language selector: English, Urdu (اردو), and Pashto (پښتو).
+- Localized live scene summaries and image-relative position phrases.
+- Microsoft neural voices: English, Pakistani Urdu (Asad / Uzma), and Pashto (Gul Nawaz).
+- Neural speech through Edge TTS with offline pyttsx3 fallback for system-supported voices.
 - Live speech synthesis runs in a background worker so network delays do not block the status interface.
-- Selectable English US and UK voices.
+- Selectable language-specific voices.
 - Adjustable speaking speed.
 - General awareness categories are prioritized in concise scene summaries.
 - Stable-scene gating and cooldown reduce repeated announcements.
@@ -87,13 +92,25 @@ Replace the example values with credentials from your TURN provider. Do not comm
 - Browser autoplay policies may block the first spoken announcement. Use the audio player's Play control if needed.
 - A public cloud app should not be treated as a private or guaranteed real-time safety service.
 
+## OCR setup
+
+The OCR engine and language data are separate from Python packages. On Windows, install Tesseract 5 (for example, the UB Mannheim build), and ensure its installation directory is on PATH. During setup, include English, Urdu (`urd`), and Pashto (`pus`) language data. Verify with:
+
+~~~powershell
+tesseract --list-langs
+~~~
+
+The list should include `eng`, `urd`, and `pus`. On Debian/Ubuntu, `packages.txt` installs the engine and these language packs. OCR quality depends on focus, lighting, print quality, font, and script; Urdu/Pashto Nastaliq and handwriting may be imperfect.
+
 ## Controls
 
+- Assistant language: selects English, Urdu, or Pashto for scene summaries and OCR speech.
 - Detection sensitivity: confidence threshold for object detection.
 - Automatic live voice: enables or disables spoken scene updates.
 - Speech voice / speed: selects neural voice and delivery rate.
 - Test voice: checks speech generation independently of the camera.
 - On-demand scene description: captures and analyzes a still image.
+- Read visible text: extracts printed text from the captured image and reads it aloud.
 
 ## Architecture overview
 
