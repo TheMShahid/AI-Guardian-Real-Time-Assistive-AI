@@ -1,13 +1,12 @@
-"""Build complete, concise scene descriptions and render speech audio."""
+"""Build listener-friendly scene descriptions and generate natural speech audio."""
 
+import asyncio
 from collections import Counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
-import pyttsx3
-
-from ai_guardian.vision.detector import Detection, TrackedDetection
+from ai_guardian.vision.detector import Detection
 
 
 def _position(box, frame_width: int) -> str:
@@ -25,60 +24,100 @@ def build_announcement(
     frame_width: int,
     tracked_detections: Optional[Sequence[dict]] = None,
 ) -> str:
-    """Describe every detected object category and useful tracked movement.
-
-    Repeated objects are grouped by label and image position; no fixed five-object
-    truncation is applied. Position and movement refer only to the camera image.
-    """
+    """Create a short, structured spoken summary without a fixed object limit."""
     if not detections:
-        return "I cannot identify any familiar objects in the current camera view."
+        return "I cannot identify any familiar objects in the camera view."
 
     grouped = Counter(
-        (item.label, _position(item.box, frame_width)) for item in detections
+        (item.label.replace("_", " "), _position(item.box, frame_width))
+        for item in detections
     )
-    descriptions = []
+    parts = []
     for (label, position), count in sorted(grouped.items()):
-        noun = label.replace("_", " ")
         if count == 1:
-            descriptions.append(f"{noun} on the {position}")
+            parts.append(f"{label} to the {position}")
         else:
-            plural = noun if noun.endswith("s") else noun + "s"
-            descriptions.append(f"{count} {plural} on the {position}")
+            plural = label if label.endswith("s") else label + "s"
+            parts.append(f"{count} {plural} to the {position}")
 
-    if len(descriptions) == 1:
-        scene = "I can see " + descriptions[0] + "."
+    if len(parts) == 1:
+        summary = f"I can see {parts[0]}."
+    elif len(parts) == 2:
+        summary = f"I can see {parts[0]} and {parts[1]}."
     else:
-        scene = "I can see " + "; ".join(descriptions) + "."
+        summary = "I can see " + ", ".join(parts[:-1]) + f", and {parts[-1]}."
 
     moving = []
+    seen_tracks = set()
     for item in tracked_detections or ():
         motion = item.get("motion", "stationary")
-        if motion in ("moving left", "moving right"):
-            moving.append(
-                f'{item["label"]} number {item["track_id"]} is moving {motion.split()[-1]} in the camera view'
-            )
+        track_id = item.get("track_id")
+        if motion in ("moving left", "moving right") and track_id not in seen_tracks:
+            seen_tracks.add(track_id)
+            moving.append(f"a {item['label']} is moving {motion.split()[-1]} across the camera view")
 
     if moving:
-        scene += " Movement: " + "; ".join(moving) + "."
-    return scene
+        summary += " Movement in the camera view: " + "; ".join(moving) + "."
+    return summary
 
 
-def text_to_speech_audio(text: str) -> bytes:
-    """Render the complete announcement to WAV using the installed system voice."""
-    if not text or not text.strip():
-        raise ValueError("Speech text cannot be empty.")
+def _edge_tts_audio(text: str, voice: str, rate: str) -> bytes:
+    """Generate natural neural speech using Microsoft's online Edge TTS service."""
+    import edge_tts
+
+    async def generate() -> bytes:
+        communicate = edge_tts.Communicate(text, voice, rate=rate)
+        chunks = []
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                chunks.append(chunk["data"])
+        return b"".join(chunks)
+
+    return asyncio.run(generate())
+
+
+def _offline_tts_audio(text: str) -> bytes:
+    """Fallback to the locally installed system voice."""
+    import pyttsx3
 
     with TemporaryDirectory() as temp_dir:
         audio_path = Path(temp_dir) / "announcement.wav"
         engine = pyttsx3.init()
-        engine.setProperty("rate", 145)
+        engine.setProperty("rate", 155)
         engine.setProperty("volume", 1.0)
         engine.save_to_file(text, str(audio_path))
         engine.runAndWait()
         engine.stop()
 
         if not audio_path.exists() or audio_path.stat().st_size == 0:
-            raise RuntimeError(
-                "Text-to-speech did not produce audio. Check the installed system voice."
-            )
+            raise RuntimeError("The offline speech engine did not create an audio file.")
         return audio_path.read_bytes()
+
+
+def text_to_speech_audio(
+    text: str,
+    voice: str = "en-US-AriaNeural",
+    rate: str = "-5%",
+) -> Tuple[bytes, str, str]:
+    """Return audio bytes, MIME type, and engine label.
+
+    Neural speech is attempted first. If internet/service access fails, the
+    installed offline voice is used automatically.
+    """
+    if not text or not text.strip():
+        raise ValueError("Speech text cannot be empty.")
+
+    try:
+        audio = _edge_tts_audio(text.strip(), voice, rate)
+        if audio:
+            return audio, "audio/mpeg", "Natural neural voice"
+        raise RuntimeError("The neural speech service returned empty audio.")
+    except Exception as neural_error:
+        try:
+            audio = _offline_tts_audio(text.strip())
+            return audio, "audio/wav", "Offline system voice (fallback)"
+        except Exception as offline_error:
+            raise RuntimeError(
+                "Both speech engines failed. Neural voice error: "
+                f"{neural_error}. Offline voice error: {offline_error}"
+            ) from offline_error
