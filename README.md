@@ -1,6 +1,6 @@
 # AI Guardian — Real-Time Assistive AI
 
-AI Guardian is a camera-based assistive visual-awareness prototype for blind and visually impaired people. It combines live object detection, multi-frame tracking, image-plane position descriptions, and spoken scene summaries.
+AI Guardian is an experimental camera-based visual-awareness system for blind and visually impaired people. The current research prototype combines live object detection, multi-frame tracking, image-plane position descriptions, OCR, and spoken scene summaries. The target product is an accessible Android application with edge-first AI inference and optional privacy-controlled cloud services.
 
 > **Safety notice:** AI Guardian is an experimental awareness aid, not a certified mobility or navigation device. It must not be relied on for road crossing, route selection, or collision avoidance.
 
@@ -77,15 +77,14 @@ Streamlit Community Cloud installs Python dependencies from requirements.txt and
 
 ### WebRTC connectivity and optional TURN
 
-The app includes Google's public STUN server for WebRTC connectivity. Some networks and hosting paths require a TURN relay as well. If the camera fails to connect after deployment, configure a TURN service and add these values in the app's Settings → Secrets:
+The app includes Google's public STUN server and can request temporary Cloudflare TURN credentials. To enable the optional Cloudflare TURN relay, add the following values in the app's Settings → Secrets:
 
 ~~~toml
-TURN_URLS = ["turn:your-turn-host:3478"]
-TURN_USERNAME = "your-turn-username"
-TURN_CREDENTIAL = "your-turn-credential"
+CF_TURN_KEY_ID = "your-cloudflare-turn-key-id"
+CF_TURN_API_TOKEN = "your-cloudflare-api-token"
 ~~~
 
-Replace the example values with credentials from your TURN provider. Do not commit real credentials to GitHub. The application reads these values from Streamlit Secrets and adds them to its WebRTC ICE configuration. If your provider supplies multiple TURN URLs, include them all in the TURN_URLS array.
+Replace the example values with credentials from Cloudflare Calls TURN. Do not commit real credentials to GitHub. The long-lived API token remains server-side; the application requests temporary ICE credentials for the browser. If these secrets are absent, the app attempts STUN-only connectivity.
 
 ### Cloud deployment limitations
 
@@ -143,6 +142,14 @@ Object labels, boxes       Temporary track IDs
        Browser audio playback
 ~~~
 
+## Production application direction
+
+The production target is an Android-first native application using Kotlin, Jetpack Compose, and CameraX. The intended architecture separates continuous lightweight object detection/tracking from selective OCR, depth estimation, and vision-language scene understanding. A perception orchestrator will prioritize events and manage speech through native Android audio APIs. FastAPI will provide optional backend services; continuous camera upload is not the default.
+
+The full architecture, model execution strategy, privacy requirements, testing plan, and staged delivery gates are documented in [Production Application Architecture](docs/architecture/production-application-architecture.md).
+
+The Streamlit application remains the research and model-validation prototype. Browser autoplay, shared cloud compute, and WebRTC constraints make it unsuitable as the final mobile interface.
+
 ## Current limitations and responsible use
 
 - Object recognition is limited to the classes learned by the selected YOLO model.
@@ -154,11 +161,12 @@ Object labels, boxes       Temporary track IDs
 
 ## Roadmap
 
-1. Robust live camera and speech experience, including annotated preview and image-relative object positions.
-2. Temporal scene understanding and announcement scheduling.
-3. Depth-aware spatial awareness with explicit uncertainty.
-4. Hazard-awareness research and controlled evaluation.
-5. Edge deployment profiling and accessibility testing with blind and low-vision participants.
+1. Define model contracts, orchestration interfaces, and a reproducible benchmark harness.
+2. Build the accessible Android camera application and native speech pipeline.
+3. Integrate on-device detection/tracking and multilingual OCR.
+4. Add selective depth and scene-understanding models after device profiling.
+5. Integrate optional FastAPI/cloud services with explicit consent.
+6. Complete privacy, accessibility, reliability, and supervised real-world evaluation.
 
 ## Technology
 
