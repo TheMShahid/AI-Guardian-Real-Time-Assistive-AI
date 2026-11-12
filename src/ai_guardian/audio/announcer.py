@@ -222,10 +222,10 @@ def split_text_for_speech(text: str, max_chars: int = 280) -> List[str]:
     if max_chars < 80:
         raise ValueError("max_chars must be at least 80.")
 
-    normalized = re.sub(r"[ \\t]+", " ", text).strip()
+    normalized = re.sub(r"[ \t]+", " ", text).strip()
     sentences = [
         part.strip()
-        for part in re.split(r"(?<=[.!?؟۔])\\s+|\\n+", normalized)
+        for part in re.split(r"(?<=[.!?؟۔])\s+|\n+", normalized)
         if part.strip()
     ]
     segments: List[str] = []
