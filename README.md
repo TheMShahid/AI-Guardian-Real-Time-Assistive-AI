@@ -11,7 +11,8 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 - Cloud-friendly inference throttling targets up to 5 AI inference passes per second; intermediate camera frames reuse the latest annotated result.
 - Lazy-loads the Ultralytics model package when the live processor starts rather than during the initial page import.
 - Live browser camera streaming through WebRTC.
-- Object association across frames with ByteTrack.
+- Object association across frames with ByteTrack; raw detections remain available for scene announcements even before a persistent track ID is assigned.
+- Live AI inference-latency and model-initialization telemetry to distinguish slow model startup from slow per-frame inference.
 - Temporary track IDs, approximate left/centre/right image position, and left/right image-plane movement.
 - A compact, centred live preview that displays the server-annotated video stream.
 - Input-frame conversion is skipped between throttled inference passes to reduce avoidable CPU work.
