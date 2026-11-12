@@ -149,7 +149,7 @@ private fun GuardianHome() {
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Start the camera when you are ready. Video is processed on this phone in this initial app shell.",
+                        text = "Start the camera when you are ready. The preview stays on this phone; AI detection is the next integration step.",
                         color = Color(0xFFCFD8DC)
                     )
                 }
