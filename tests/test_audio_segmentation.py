@@ -7,7 +7,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from ai_guardian.audio.announcer import split_text_for_speech
+from ai_guardian.audio.announcer import build_announcement, split_text_for_speech
+from ai_guardian.vision.detector import Detection
 
 
 class SpeechSegmentationTests(unittest.TestCase):
@@ -32,6 +33,20 @@ class SpeechSegmentationTests(unittest.TestCase):
         segments = split_text_for_speech(text, max_chars=100)
         self.assertGreaterEqual(len(segments), 1)
         self.assertTrue(all(part.strip() for part in segments))
+
+    def test_scene_announcement_includes_more_than_four_object_groups(self):
+        labels = [
+            "person", "car", "bicycle", "dog", "chair", "bottle",
+            "book", "laptop", "backpack", "cup", "clock", "vase",
+        ]
+        detections = [
+            Detection(label=label, confidence=0.8, box=(20 + i * 10, 20, 60 + i * 10, 80))
+            for i, label in enumerate(labels)
+        ]
+        announcement = build_announcement(detections, frame_width=800)
+        self.assertIn("person", announcement)
+        self.assertIn("backpack", announcement)
+        self.assertIn("2 other object groups", announcement)
 
 
 if __name__ == "__main__":
