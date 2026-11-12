@@ -573,6 +573,7 @@ if st.session_state.get("latest_audio"):
     st.audio(
         st.session_state["latest_audio"],
         format=st.session_state["latest_audio_mime"],
+        autoplay=True,
     )
     st.caption("Use the audio controls to pause, resume, or replay the announcement.")
 
