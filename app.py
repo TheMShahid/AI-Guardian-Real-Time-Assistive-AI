@@ -1,5 +1,7 @@
 """AI Guardian: accessible live visual awareness with improved speech feedback."""
 
+import base64
+import json
 import sys
 import threading
 import time
@@ -9,6 +11,7 @@ from pathlib import Path
 import av
 import cv2
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_webrtc import WebRtcMode, VideoProcessorBase, webrtc_streamer
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -18,7 +21,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 SPEECH_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ai-guardian-tts")
 INFERENCE_INTERVAL_SECONDS = 0.20  # Target: 5 AI inference passes per second.
 
-from ai_guardian.audio.announcer import build_announcement, text_to_speech_audio
+from ai_guardian.audio.announcer import (
+    build_announcement,
+    text_to_speech_audio,
+    text_to_speech_segments,
+)
 from ai_guardian.vision.detector import Detection, ObjectDetector
 from ai_guardian.vision.ocr import read_text_from_image
 
@@ -161,6 +168,66 @@ with st.sidebar:
 @st.cache_data(show_spinner=False, max_entries=64)
 def render_speech(text: str, voice: str, rate: str):
     return text_to_speech_audio(text, voice, rate)
+
+
+def render_audio_playlist(audio_segments, title: str = "Complete speech playback"):
+    """Render accessible sequential playback for multi-part TTS audio."""
+    data_uris = [
+        "data:" + mime + ";base64," + base64.b64encode(audio).decode("ascii")
+        for audio, mime, _engine in audio_segments
+    ]
+    clips_json = json.dumps(data_uris)
+    playlist_html = """
+    <div style="font-family:Arial,sans-serif;width:100%;">
+      <audio id="ag-audio-player" controls preload="metadata"
+             style="width:100%;" aria-label="Complete spoken text"></audio>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+        <button id="ag-replay-all" type="button"
+          style="padding:9px 14px;border-radius:8px;border:1px solid #888;cursor:pointer;">
+          Replay all
+        </button>
+        <span id="ag-playback-status" role="status" aria-live="polite">
+          Press Play to hear the complete reading.
+        </span>
+      </div>
+    </div>
+    <script>
+      const clips = __CLIPS__;
+      const player = document.getElementById("ag-audio-player");
+      const status = document.getElementById("ag-playback-status");
+      const replay = document.getElementById("ag-replay-all");
+      let current = 0;
+      function playCurrent() {
+        if (current >= clips.length) {
+          status.textContent = "Reading complete.";
+          return;
+        }
+        player.src = clips[current];
+        player.load();
+        status.textContent = "Playing part " + (current + 1) + " of " + clips.length;
+        const attempt = player.play();
+        if (attempt && attempt.catch) {
+          attempt.catch(() => {
+            status.textContent = "Press Play on the audio controls to start reading.";
+          });
+        }
+      }
+      player.addEventListener("ended", () => {
+        current += 1;
+        if (current < clips.length) playCurrent();
+        else status.textContent = "Reading complete.";
+      });
+      replay.addEventListener("click", () => {
+        current = 0;
+        playCurrent();
+      });
+      if (clips.length) {
+        player.src = clips[0];
+        status.textContent = clips.length + " audio part(s) ready. Press Play to begin.";
+      }
+    </script>
+    """.replace("__CLIPS__", clips_json)
+    components.html(playlist_html, height=118, scrolling=False)
 
 
 @st.cache_resource
@@ -471,6 +538,7 @@ def live_status_panel():
         )
 
     # Poll the worker without blocking the Streamlit fragment.
+    audio_ready = False
     speech_future = st.session_state.get("speech_future")
     if speech_future is not None and speech_future.done():
         try:
@@ -479,6 +547,7 @@ def live_status_panel():
             st.session_state["latest_audio_mime"] = mime
             st.session_state["latest_audio_engine"] = engine_name
             st.session_state["latest_audio_error"] = ""
+            audio_ready = True
         except Exception as error:
             st.session_state["latest_audio_error"] = str(error)
         finally:
@@ -487,19 +556,25 @@ def live_status_panel():
     if st.session_state.get("latest_spoken_text"):
         st.subheader("Latest spoken description")
         st.write(st.session_state["latest_spoken_text"])
-        if st.session_state.get("latest_audio"):
-            st.caption("Speech engine: " + st.session_state.get("latest_audio_engine", ""))
-            st.audio(
-                st.session_state["latest_audio"],
-                format=st.session_state["latest_audio_mime"],
-                autoplay=True,
-            )
-            st.caption("Speech is generated for stable scene changes, not every video frame. Browser autoplay restrictions may require one initial Play action.")
-        elif st.session_state.get("latest_audio_error"):
+        if st.session_state.get("latest_audio_error"):
             st.error("Speech generation failed: " + st.session_state["latest_audio_error"])
+
+    # Keep the audio player outside this two-second fragment. Otherwise each
+    # status refresh can recreate the player and interrupt a long announcement.
+    if audio_ready:
+        st.rerun()
 
 
 live_status_panel()
+
+if st.session_state.get("latest_audio"):
+    st.subheader("Live announcement playback")
+    st.caption("The player is outside the auto-refreshing status panel so playback is not reset every two seconds.")
+    st.audio(
+        st.session_state["latest_audio"],
+        format=st.session_state["latest_audio_mime"],
+    )
+    st.caption("Use the audio controls to pause, resume, or replay the announcement.")
 
 st.divider()
 st.header("On-demand scene description")
@@ -549,10 +624,18 @@ if camera_image is not None:
                     )
                 else:
                     st.text_area("Extracted text", extracted_text, height=180)
-                ocr_audio, ocr_mime, ocr_engine = text_to_speech_audio(
-                    extracted_text, selected_voice, rate_value
+                with st.spinner("Preparing complete text reading in speech segments..."):
+                    ocr_segments = text_to_speech_segments(
+                        extracted_text,
+                        selected_voice,
+                        rate_value,
+                        max_chars=280,
+                    )
+                engines = sorted({engine for _audio, _mime, engine in ocr_segments})
+                st.caption(
+                    f"Complete reading prepared: {len(ocr_segments)} audio part(s). "
+                    f"Speech engine: {', '.join(engines)}"
                 )
-                st.caption("OCR speech engine: " + ocr_engine)
-                st.audio(ocr_audio, format=ocr_mime)
+                render_audio_playlist(ocr_segments)
         except Exception as error:
             st.error("Text reading failed: " + str(error))
