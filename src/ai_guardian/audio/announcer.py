@@ -111,7 +111,8 @@ def build_announcement(
         ),
     )
 
-    spoken_groups = ordered[:4]
+    # Include a broad scene inventory while keeping spoken updates concise.
+    spoken_groups = ordered[:10]
     descriptions = []
     for (label, position), count in spoken_groups:
         translated_label = _OBJECT_NAMES.get(language, {}).get(label, label)
