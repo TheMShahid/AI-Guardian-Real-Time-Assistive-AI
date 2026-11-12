@@ -44,6 +44,12 @@ AI Guardian is an experimental camera-based visual-awareness system for blind an
 - Central theme and server settings in .streamlit/config.toml.
 - WebRTC STUN configuration with optional TURN credentials supplied through Streamlit Secrets.
 
+## Native Android application
+
+The first native Android foundation is now available in [android/](android/README.md). It provides a CameraX live phone-camera preview, explicit camera permission and start/stop controls, and a native Android voice test intended for Bluetooth headset verification.
+
+The Android app is being developed separately from the Streamlit research prototype. The initial Android milestone does not yet include on-device YOLO inference, OCR, Wi-Fi IP-camera streaming, or camera-glasses adapters. A GitHub Actions workflow builds a debug APK when Android project files change; use the Android Debug APK workflow artifact for device installation after a successful build.
+
 ## Run locally
 
 Use Python 3.11 or 3.12 for a consistent development environment. The cloud-oriented dependency set uses headless OpenCV to avoid installing desktop GUI components.
