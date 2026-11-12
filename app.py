@@ -93,9 +93,9 @@ with st.sidebar:
         "Detection sensitivity",
         min_value=0.10,
         max_value=0.80,
-        value=0.25,
+        value=0.20,
         step=0.05,
-        help="Lower values may detect more objects but can increase false detections.",
+        help="Lower values may reveal smaller/background objects but can increase false detections.",
     )
     speech_enabled = st.toggle("Automatic live voice", value=True, help="When enabled, new scene updates are converted to speech automatically.")
     language_labels = {
@@ -133,10 +133,10 @@ with st.sidebar:
     speech_rate = st.select_slider(
         "Speaking speed",
         options=["Slow", "Normal", "Fast"],
-        value="Slow",
+        value="Fast",
     )
-    rate_value = {"Slow": "-12%", "Normal": "-5%", "Fast": "+5%"}[speech_rate]
-    st.caption("Natural neural speech uses an internet connection. If unavailable, AI Guardian tries your computer’s offline voice.")
+    rate_value = {"Slow": "-12%", "Normal": "-5%", "Fast": "+10%"}[speech_rate]
+    st.caption("Fast is the default for quicker announcements. Urdu/Pashto neural voices require an internet connection.")
 
     if st.button("🔊 Test voice", use_container_width=True):
         test_text = {
@@ -339,15 +339,17 @@ class LiveObjectDetector(VideoProcessorBase):
                     self.pending_signature = signature
                     self.pending_signature_since = now
 
-                scene_stable = now - self.pending_signature_since >= 1.5
+                # Reduce latency while filtering brief detector flicker.
+                scene_stable = now - self.pending_signature_since >= 0.5
                 scene_changed = signature != self.last_signature
-                cooldown_finished = now - self.last_announcement_time >= 6.0
+                cooldown_finished = now - self.last_announcement_time >= 2.0
+                periodic_refresh_due = now - self.last_announcement_time >= 5.0
 
                 if (
                     speech_enabled
                     and tracked
-                    and scene_changed
                     and scene_stable
+                    and (scene_changed or periodic_refresh_due)
                     and cooldown_finished
                 ):
                     self.last_announcement = build_announcement(
@@ -477,10 +479,20 @@ with camera_center:
         async_processing=True,
     )
 
+# Keep live playback immediately below the camera, not below the long status table.
+if st.session_state.get("latest_audio"):
+    st.subheader("🔊 Live voice announcement")
+    st.audio(
+        st.session_state["latest_audio"],
+        format=st.session_state["latest_audio_mime"],
+        autoplay=True,
+    )
+    st.caption("Pause, resume, or replay using the audio controls.")
+
 st.header("Live assistant status")
 
 
-@st.fragment(run_every="2s")
+@st.fragment(run_every="1s")
 def live_status_panel():
     processor = ctx.video_processor
     if processor is None:
@@ -566,16 +578,6 @@ def live_status_panel():
 
 
 live_status_panel()
-
-if st.session_state.get("latest_audio"):
-    st.subheader("Live announcement playback")
-    st.caption("The player is outside the auto-refreshing status panel so playback is not reset every two seconds.")
-    st.audio(
-        st.session_state["latest_audio"],
-        format=st.session_state["latest_audio_mime"],
-        autoplay=True,
-    )
-    st.caption("Use the audio controls to pause, resume, or replay the announcement.")
 
 st.divider()
 st.header("On-demand scene description")
