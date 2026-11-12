@@ -239,7 +239,10 @@ class LiveObjectDetector(VideoProcessorBase):
     """Per-camera YOLO/ByteTrack processor with thread-safe status."""
 
     def __init__(self):
+        model_load_started = time.perf_counter()
         self.detector = ObjectDetector(confidence=confidence)
+        self.model_load_seconds = time.perf_counter() - model_load_started
+        self.last_inference_ms = 0.0
         self.lock = threading.Lock()
         self.frame_count = 0
         self.last_frame_time = 0.0
@@ -274,7 +277,9 @@ class LiveObjectDetector(VideoProcessorBase):
             # Set the throttle timestamp before inference so repeated model
             # errors cannot trigger an inference attempt on every video frame.
             self.last_inference_time = now
+            inference_started = time.perf_counter()
             annotated, tracked = self.detector.track(image)
+            self.last_inference_ms = (time.perf_counter() - inference_started) * 1000
             self.last_annotated_frame = annotated.copy()
             frame_width = image.shape[1]
             track_rows = []
@@ -381,6 +386,8 @@ class LiveObjectDetector(VideoProcessorBase):
             return {
                 "frame_count": self.frame_count,
                 "last_frame_time": self.last_frame_time,
+                "inference_ms": self.last_inference_ms,
+                "model_load_seconds": self.model_load_seconds,
                 "tracks": list(self.last_tracks),
                 "announcement": self.last_announcement,
                 "announcement_id": self.announcement_id,
@@ -506,13 +513,15 @@ def live_status_panel():
 
     status = processor.get_status()
     age = time.monotonic() - status["last_frame_time"] if status["last_frame_time"] else None
-    columns = st.columns(4)
-    columns[0].metric("Frames processed", status["frame_count"])
+    columns = st.columns(5)
+    columns[0].metric("AI passes", status["frame_count"])
     columns[1].metric(
         "Camera", "Live" if age is not None and age < 3 else "Waiting"
     )
     columns[2].metric("Visible objects", len(status["tracks"]))
     columns[3].metric("Tracked IDs", len({row["track_id"] for row in status["tracks"] if row["track_id"] is not None}))
+    columns[4].metric("AI latency", f'{status["inference_ms"]:.0f} ms')
+    st.caption(f'YOLO model initialization: {status["model_load_seconds"]:.1f} seconds')
 
     if status["error"]:
         st.error("Vision pipeline: " + status["error"])
