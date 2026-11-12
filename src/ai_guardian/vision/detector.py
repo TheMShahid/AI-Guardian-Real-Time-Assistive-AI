@@ -1,7 +1,7 @@
 """YOLO-based object detection and persistent object tracking."""
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class Detection:
 class TrackedDetection(Detection):
     """A detection associated with a persistent tracker ID."""
 
-    track_id: int
+    track_id: Optional[int]
 
 
 class ObjectDetector:
@@ -96,8 +96,15 @@ class ObjectDetector:
 
         tracked: List[TrackedDetection] = []
         boxes = result.boxes
-        if boxes is not None and boxes.id is not None:
-            track_ids = boxes.id.int().cpu().tolist()
+        if boxes is not None and len(boxes) > 0:
+            # Detection must remain available even before ByteTrack assigns IDs.
+            # A missing track ID means "detected but not yet track-associated";
+            # it must never suppress scene awareness or spoken announcements.
+            track_ids = (
+                boxes.id.int().cpu().tolist()
+                if boxes.id is not None
+                else [None] * len(boxes)
+            )
             class_ids = boxes.cls.int().cpu().tolist()
             scores = boxes.conf.cpu().tolist()
             coordinates = boxes.xyxy.int().cpu().tolist()
@@ -108,7 +115,7 @@ class ObjectDetector:
                 x1, y1, x2, y2 = coords
                 tracked.append(
                     TrackedDetection(
-                        track_id=int(track_id),
+                        track_id=int(track_id) if track_id is not None else None,
                         label=result.names[int(class_id)],
                         confidence=float(score),
                         box=(int(x1), int(y1), int(x2), int(y2)),
