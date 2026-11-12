@@ -162,8 +162,42 @@ with st.sidebar:
     if st.session_state.get("test_audio_error"):
         st.error(st.session_state["test_audio_error"])
 
+    st.caption("Bluetooth headset: pair it in your phone/computer Bluetooth settings, select it as the audio output, then use Test voice. The browser follows the operating system audio route; this app does not pair Bluetooth devices itself.")
+
     st.divider()
     st.caption("AI Guardian is an experimental awareness aid, not a certified mobility or navigation device.")
+
+def capture_rtsp_frame(stream_url: str):
+    """Capture one frame from a user-supplied local-network RTSP camera."""
+    normalized_url = stream_url.strip()
+    if not normalized_url.startswith(("rtsp://", "rtsps://")):
+        raise ValueError("Enter a valid RTSP or RTSPS stream URL.")
+
+    capture = cv2.VideoCapture(normalized_url, cv2.CAP_FFMPEG)
+    try:
+        if not capture.isOpened():
+            raise RuntimeError(
+                "Could not open the IP camera stream. Check the RTSP URL, "
+                "camera credentials, and that this computer is on the same network."
+            )
+
+        frame = None
+        for _ in range(5):
+            success, candidate = capture.read()
+            if success and candidate is not None:
+                frame = candidate
+                break
+            time.sleep(0.2)
+
+        if frame is None:
+            raise RuntimeError(
+                "The camera connected but did not provide a video frame. "
+                "Check that the RTSP stream is active and supports H.264/H.265."
+            )
+        return frame
+    finally:
+        capture.release()
+
 
 @st.cache_data(show_spinner=False, max_entries=64)
 def render_speech(text: str, voice: str, rate: str):
@@ -592,6 +626,60 @@ def live_status_panel():
 
 
 live_status_panel()
+
+
+st.divider()
+st.header("Wi-Fi IP camera")
+st.caption(
+    "Connect to an IP camera on the same local network using its RTSP stream URL. "
+    "This first milestone captures and analyzes a frame on demand; continuous RTSP "
+    "video is a later step."
+)
+with st.form("wifi_ip_camera_form"):
+    rtsp_stream_url = st.text_input(
+        "RTSP camera URL",
+        placeholder="rtsp://camera-address:554/stream",
+        type="password",
+        help="The URL is masked because it may contain a camera username and password. "
+             "It is used only by this running app session and is not displayed in results.",
+    )
+    capture_wifi_frame = st.form_submit_button(
+        "Connect and analyze Wi-Fi camera",
+        type="primary",
+        use_container_width=True,
+    )
+
+if capture_wifi_frame:
+    if not rtsp_stream_url.strip():
+        st.warning("Enter the RTSP stream URL provided by your IP camera.")
+    else:
+        try:
+            with st.spinner("Connecting to the Wi-Fi camera and reading a frame..."):
+                wifi_frame = capture_rtsp_frame(rtsp_stream_url)
+                wifi_detector = load_detector(confidence)
+                wifi_annotated, wifi_detections = wifi_detector.detect(wifi_frame)
+                wifi_announcement = build_announcement(
+                    wifi_detections,
+                    wifi_frame.shape[1],
+                    language=assistant_language,
+                )
+                wifi_audio, wifi_mime, wifi_engine = render_speech(
+                    wifi_announcement, selected_voice, rate_value
+                )
+
+            st.image(
+                wifi_annotated,
+                channels="BGR",
+                caption="Wi-Fi IP camera — analyzed frame",
+                use_container_width=True,
+            )
+            st.subheader("Wi-Fi camera scene description")
+            st.write(wifi_announcement)
+            st.caption("Speech engine: " + wifi_engine)
+            st.audio(wifi_audio, format=wifi_mime)
+        except Exception as error:
+            st.error("Wi-Fi camera connection or analysis failed: " + str(error))
+
 
 st.divider()
 st.header("On-demand scene description")
