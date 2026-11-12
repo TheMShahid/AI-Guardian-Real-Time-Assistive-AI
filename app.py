@@ -288,7 +288,10 @@ class LiveObjectDetector(VideoProcessorBase):
                     else "right" if centre_x > frame_width * 0.65
                     else "centre"
                 )
-                previous = self.previous_centres.get(item.track_id)
+                previous = (
+                    self.previous_centres.get(item.track_id)
+                    if item.track_id is not None else None
+                )
                 motion = "stationary"
                 if previous is not None:
                     delta = centre_x - previous
@@ -298,8 +301,10 @@ class LiveObjectDetector(VideoProcessorBase):
                     elif delta >= threshold:
                         motion = "moving right"
 
-                self.previous_centres[item.track_id] = centre_x
-                self.last_seen[item.track_id] = now
+                # Only genuine ByteTrack IDs are used for temporal movement.
+                if item.track_id is not None:
+                    self.previous_centres[item.track_id] = centre_x
+                    self.last_seen[item.track_id] = now
                 detections.append(
                     Detection(label=item.label, confidence=item.confidence, box=item.box)
                 )
@@ -507,7 +512,7 @@ def live_status_panel():
         "Camera", "Live" if age is not None and age < 3 else "Waiting"
     )
     columns[2].metric("Visible objects", len(status["tracks"]))
-    columns[3].metric("Tracked IDs", len({row["track_id"] for row in status["tracks"]}))
+    columns[3].metric("Tracked IDs", len({row["track_id"] for row in status["tracks"] if row["track_id"] is not None}))
 
     if status["error"]:
         st.error("Vision pipeline: " + status["error"])
