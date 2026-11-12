@@ -20,6 +20,7 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 - Still-image scene analysis on demand.
 - OCR text reading from camera snapshots using Tesseract for English, Urdu, and Pashto printed text.
 - Extracted text is displayed and read aloud in the selected assistant language.
+- Long OCR readings are split at sentence/word boundaries into smaller TTS requests and played sequentially through one accessible audio player, with pause/resume and replay-all controls.
 
 ### Multilingual visual and voice assistance
 - Assistant language selector: English, Urdu (اردو), and Pashto (پښتو).
@@ -27,6 +28,8 @@ AI Guardian is a camera-based assistive visual-awareness prototype for blind and
 - Microsoft neural voices: English, Pakistani Urdu (Asad / Uzma), and Pashto (Gul Nawaz).
 - Neural speech through Edge TTS with offline pyttsx3 fallback for system-supported voices.
 - Live speech synthesis runs in a background worker so network delays do not block the status interface.
+- Live announcement audio is rendered outside the two-second auto-refreshing status fragment to prevent status refreshes from resetting playback.
+- Urdu/Pashto speech does not silently fall back to an unrelated English system voice when the neural voice service is unavailable; a clear error is shown instead.
 - Selectable language-specific voices.
 - Adjustable speaking speed.
 - General awareness categories are prioritized in concise scene summaries.
@@ -90,6 +93,7 @@ Replace the example values with credentials from your TURN provider. Do not comm
 - Browser camera permission and a working WebRTC network path are required.
 - A TURN service may be necessary on restrictive networks. TURN credentials are not bundled with this repository.
 - Browser autoplay policies may block the first spoken announcement. Use the audio player's Play control if needed.
+- Long OCR speech is generated one segment at a time; generation time depends on text length and the online neural TTS service.
 - A public cloud app should not be treated as a private or guaranteed real-time safety service.
 
 ## OCR setup
