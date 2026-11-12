@@ -1,6 +1,7 @@
 """Build concise, prioritized scene descriptions and generate speech audio."""
 
 import asyncio
+import re
 from collections import Counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -196,6 +197,14 @@ def text_to_speech_audio(
             return audio, "audio/mpeg", "Natural neural voice"
         raise RuntimeError("The neural speech service returned empty audio.")
     except Exception as neural_error:
+        # The Windows/system fallback is often English-only. Do not silently
+        # read Urdu or Pashto text with an unrelated English voice.
+        if voice.startswith(("ur-", "ps-")):
+            raise RuntimeError(
+                f"Neural speech failed for voice '{voice}'. "
+                "Urdu/Pashto require the online language-specific voice. "
+                f"Details: {neural_error}"
+            ) from neural_error
         try:
             audio = _offline_tts_audio(text.strip())
             return audio, "audio/wav", "Offline system voice (fallback)"
@@ -204,3 +213,69 @@ def text_to_speech_audio(
                 "Both speech engines failed. Neural voice error: "
                 f"{neural_error}. Offline voice error: {offline_error}"
             ) from offline_error
+
+
+def split_text_for_speech(text: str, max_chars: int = 280) -> List[str]:
+    """Split long OCR text into sentence-aware, TTS-safe segments."""
+    if not text or not text.strip():
+        raise ValueError("Speech text cannot be empty.")
+    if max_chars < 80:
+        raise ValueError("max_chars must be at least 80.")
+
+    normalized = re.sub(r"[ \\t]+", " ", text).strip()
+    sentences = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?؟۔])\\s+|\\n+", normalized)
+        if part.strip()
+    ]
+    segments: List[str] = []
+    current = ""
+
+    for sentence in sentences:
+        # Split unusually long sentences at word boundaries.
+        pieces = []
+        remaining = sentence
+        while len(remaining) > max_chars:
+            split_at = remaining.rfind(" ", 0, max_chars + 1)
+            if split_at <= 0:
+                split_at = max_chars
+            pieces.append(remaining[:split_at].strip())
+            remaining = remaining[split_at:].strip()
+        if remaining:
+            pieces.append(remaining)
+
+        for piece in pieces:
+            candidate = f"{current} {piece}".strip()
+            if current and len(candidate) > max_chars:
+                segments.append(current)
+                current = piece
+            else:
+                current = candidate
+
+    if current:
+        segments.append(current)
+    return segments
+
+
+def text_to_speech_segments(
+    text: str,
+    voice: str = "en-US-AriaNeural",
+    rate: str = "-5%",
+    max_chars: int = 280,
+) -> List[Tuple[bytes, str, str]]:
+    """Generate independently playable audio segments for complete long-form reading.
+
+    Each segment is generated in order. The UI can play them sequentially,
+    avoiding oversized single TTS requests and truncated long-form playback.
+    """
+    text_segments = split_text_for_speech(text, max_chars=max_chars)
+    audio_segments: List[Tuple[bytes, str, str]] = []
+    for index, segment in enumerate(text_segments, start=1):
+        try:
+            audio_segments.append(text_to_speech_audio(segment, voice, rate))
+        except Exception as error:
+            raise RuntimeError(
+                f"Speech generation failed at segment {index} of "
+                f"{len(text_segments)}: {error}"
+            ) from error
+    return audio_segments
