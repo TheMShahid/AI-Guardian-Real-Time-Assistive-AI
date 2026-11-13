@@ -690,7 +690,7 @@ if stop_wifi_live:
     st.rerun()
 
 
-@st.fragment(run_every="0.5s")
+@st.fragment(run_every="0.25s")
 def wifi_live_panel():
     worker = st.session_state.get("wifi_camera_worker")
     if worker is None:
