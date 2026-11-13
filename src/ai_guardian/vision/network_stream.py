@@ -18,7 +18,8 @@ class NetworkCameraWorker:
         self.rate = rate
         self.speech_enabled = speech_enabled
         self.speech_executor = speech_executor
-        self.detector = ObjectDetector(confidence=confidence)
+        self.confidence = confidence
+        self.detector = None
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
         self.thread = None
@@ -48,6 +49,7 @@ class NetworkCameraWorker:
 
     def _run(self):
         try:
+            self.detector = ObjectDetector(confidence=self.confidence)
             for frame in iter_camera_frames(self.url, self.stop_event, target_fps=5):
                 if self.stop_event.is_set():
                     break
