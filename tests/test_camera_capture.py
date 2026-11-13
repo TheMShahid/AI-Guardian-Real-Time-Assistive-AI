@@ -91,6 +91,29 @@ class CameraCaptureTests(unittest.TestCase):
         decoded_bytes = mock_decode.call_args.args[0].tobytes()
         self.assertEqual(decoded_bytes, jpeg)
 
+    @patch("ai_guardian.vision.camera.cv2.imdecode")
+    @patch("ai_guardian.vision.camera.requests.get")
+    def test_mjpeg_stream_reconnects_after_read_timeout(self, mock_get, mock_decode):
+        response = Mock()
+        response.headers = {"Content-Type": "multipart/x-mixed-replace; boundary=frame"}
+        jpeg = bytes([0xFF, 0xD8]) + b"jpeg-payload" + bytes([0xFF, 0xD9])
+        response.iter_content.return_value = [jpeg]
+        mock_get.side_effect = [
+            __import__("requests").exceptions.ConnectionError("Read timed out"),
+            response,
+        ]
+        expected = np.zeros((10, 10, 3), dtype=np.uint8)
+        mock_decode.return_value = expected
+        stop_event = __import__("threading").Event()
+
+        frames = iter_camera_frames("http://192.168.1.10:8080/video", stop_event)
+        self.assertIs(next(frames), expected)
+        self.assertEqual(mock_get.call_count, 2)
+        stop_event.set()
+        with self.assertRaises(StopIteration):
+            next(frames)
+        response.close.assert_called_once()
+
     def test_invalid_scheme_is_rejected(self):
         with self.assertRaises(ValueError):
             capture_camera_frame("ftp://192.168.1.10/video")
