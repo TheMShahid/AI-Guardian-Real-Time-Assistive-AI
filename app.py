@@ -701,10 +701,21 @@ def wifi_live_panel():
             caption="Live Wi-Fi camera — AI annotated stream",
             width="stretch",
         )
-        metrics = st.columns(3)
+        metrics = st.columns(4)
         metrics[0].metric("Processed frames", status["frames"])
         metrics[1].metric("AI latency", f'{status["inference_ms"]:.0f} ms')
-        metrics[2].metric("Connection", "Live" if status["running"] else "Stopped")
+        metrics[2].metric(
+            "Camera",
+            "Connected" if status.get("camera_connected") else "Connecting",
+        )
+        metrics[3].metric(
+            "AI model",
+            "Ready" if status.get("model_load_seconds", 0) > 0 else "Loading",
+        )
+        if status.get("camera_connected") and status.get("model_load_seconds", 0) == 0:
+            st.info("Camera is already connected. AI model is loading in the background; live preview is available.")
+        elif status.get("model_load_seconds", 0) > 0:
+            st.caption(f'AI model loaded in {status["model_load_seconds"]:.1f} seconds.')
         st.subheader("Live scene description")
         st.write(status["description"])
         if status["audio"] is not None and status["audio_id"] > st.session_state.get("wifi_last_audio_id", 0):
