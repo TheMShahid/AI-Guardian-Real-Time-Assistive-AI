@@ -61,7 +61,7 @@ class NetworkCameraWorker:
             # Connect and display the first camera frame BEFORE loading YOLO.
             # This removes model startup time from the user's perceived camera
             # connection time and gives immediate visual feedback.
-            frame_iterator = iter_camera_frames(self.url, self.stop_event, target_fps=5)
+            frame_iterator = iter_camera_frames(self.url, self.stop_event, target_fps=8)
             first_frame = next(frame_iterator)
             with self.lock:
                 self.latest_frame = first_frame.copy()
