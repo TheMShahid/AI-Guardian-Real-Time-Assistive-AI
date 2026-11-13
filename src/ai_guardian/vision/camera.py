@@ -70,8 +70,80 @@ def capture_camera_frame(camera_url: str):
         response.close()
 
 
+def _iter_mjpeg_response(response, stop_event, interval):
+    """Decode complete multipart JPEG parts from one persistent HTTP response."""
+    buffer = bytearray()
+    last_yield = 0.0
+    consecutive_bad_frames = 0
+
+    for chunk in response.iter_content(chunk_size=512):
+        if stop_event.is_set():
+            return
+        if not chunk:
+            continue
+        buffer.extend(chunk)
+
+        while not stop_event.is_set():
+            header_end = buffer.find(b"\\r\\n\\r\\n")
+            separator_size = 4
+            if header_end < 0:
+                header_end = buffer.find(b"\\n\\n")
+                separator_size = 2
+
+            jpeg = None
+            if header_end >= 0:
+                headers = bytes(buffer[:header_end]).lower()
+                length_value = None
+                for header_line in headers.splitlines():
+                    if header_line.startswith(b"content-length:"):
+                        try:
+                            length_value = int(header_line.split(b":", 1)[1].strip())
+                        except ValueError:
+                            length_value = None
+                        break
+                if length_value is not None and length_value > 0:
+                    body_start = header_end + separator_size
+                    body_end = body_start + length_value
+                    if len(buffer) < body_end:
+                        break
+                    jpeg = bytes(buffer[body_start:body_end])
+                    del buffer[:body_end]
+
+            if jpeg is None:
+                start = buffer.find(b"\\xff\\xd8")
+                end = buffer.find(b"\\xff\\xd9", start + 2) if start >= 0 else -1
+                if start < 0 or end < 0:
+                    if len(buffer) > 12 * 1024 * 1024:
+                        del buffer[:-2]
+                    break
+                jpeg = bytes(buffer[start:end + 2])
+                del buffer[:end + 2]
+
+            if not jpeg.startswith(b"\\xff\\xd8") or not jpeg.endswith(b"\\xff\\xd9"):
+                consecutive_bad_frames += 1
+                if consecutive_bad_frames >= 30:
+                    raise RuntimeError("The MJPEG camera repeatedly sent incomplete JPEG frames.")
+                continue
+
+            now = time.monotonic()
+            if now - last_yield < interval:
+                continue
+            frame = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if frame is None:
+                consecutive_bad_frames += 1
+                if consecutive_bad_frames >= 30:
+                    raise RuntimeError("The MJPEG camera repeatedly sent JPEG frames that could not be decoded.")
+                continue
+            consecutive_bad_frames = 0
+            last_yield = now
+            yield frame
+
+    if not stop_event.is_set():
+        raise requests.ConnectionError("The MJPEG stream ended before the camera was stopped.")
+
+
 def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
-    """Yield continuous BGR frames from RTSP, HTTP MJPEG, or HTTP JPEG snapshots."""
+    """Yield continuous frames, reconnecting automatically after transient network failures."""
     url = camera_url.strip()
     interval = 1.0 / max(1.0, target_fps)
 
@@ -99,96 +171,44 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
     if not url.startswith(("http://", "https://")):
         raise ValueError("Use an RTSP/RTSPS URL or an HTTP/HTTPS camera URL.")
 
-    # IP Webcam /video is a multipart MJPEG stream. Keep one HTTP connection open.
-    response = requests.get(url, stream=True, timeout=(5, 20))
-    try:
-        response.raise_for_status()
-        content_type = response.headers.get("Content-Type", "").lower()
-        if "multipart" in content_type or url.rstrip("/").endswith("/video"):
-            buffer = bytearray()
-            last_yield = 0.0
-            consecutive_bad_frames = 0
-            for chunk in response.iter_content(chunk_size=1024):
-                if stop_event.is_set():
-                    break
-                if not chunk:
-                    continue
-                buffer.extend(chunk)
-                while True:
-                    # Prefer MIME part boundaries and Content-Length when the
-                    # camera supplies them. This prevents cutting a JPEG at a
-                    # marker-like byte sequence in the multipart stream.
-                    header_end = buffer.find(b"\r\n\r\n")
-                    separator_size = 4
-                    if header_end < 0:
-                        header_end = buffer.find(b"\n\n")
-                        separator_size = 2
+    retry_delay = 0.5
+    while not stop_event.is_set():
+        response = None
+        try:
+            # A bounded read timeout detects dead sockets; the outer loop then
+            # reconnects instead of terminating the entire camera worker.
+            response = requests.get(url, stream=True, timeout=(4, 8))
+            response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "").lower()
 
-                    jpeg = None
-                    if header_end >= 0:
-                        headers = bytes(buffer[:header_end]).lower()
-                        length_value = None
-                        for header_line in headers.splitlines():
-                            if header_line.startswith(b"content-length:"):
-                                try:
-                                    length_value = int(header_line.split(b":", 1)[1].strip())
-                                except ValueError:
-                                    length_value = None
-                                break
-                        if length_value is not None and length_value > 0:
-                            body_start = header_end + separator_size
-                            body_end = body_start + length_value
-                            if len(buffer) < body_end:
-                                break
-                            jpeg = bytes(buffer[body_start:body_end])
-                            del buffer[:body_end]
-                    if jpeg is None:
-                        # Compatibility fallback for MJPEG servers that omit
-                        # Content-Length. Keep partial JPEG data until EOI.
-                        start = buffer.find(b"\xff\xd8")
-                        end = buffer.find(b"\xff\xd9", start + 2) if start >= 0 else -1
-                        if start < 0 or end < 0:
-                            if len(buffer) > 12 * 1024 * 1024:
-                                del buffer[:-2]
-                            break
-                        jpeg = bytes(buffer[start:end + 2])
-                        del buffer[:end + 2]
-
-                    if not jpeg.startswith(b"\xff\xd8") or not jpeg.endswith(b"\xff\xd9"):
-                        consecutive_bad_frames += 1
-                        if consecutive_bad_frames >= 30:
-                            raise RuntimeError("The MJPEG camera repeatedly sent incomplete JPEG frames.")
-                        continue
-
-                    now = time.monotonic()
-                    if now - last_yield < interval:
-                        continue
-                    frame = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                    if frame is None:
-                        consecutive_bad_frames += 1
-                        if consecutive_bad_frames >= 30:
-                            raise RuntimeError("The MJPEG camera repeatedly sent JPEG frames that could not be decoded.")
-                        continue
-                    consecutive_bad_frames = 0
-                    last_yield = now
+            if "multipart" in content_type or url.rstrip("/").endswith("/video"):
+                received_frame = False
+                for frame in _iter_mjpeg_response(response, stop_event, interval):
+                    received_frame = True
+                    retry_delay = 0.5
                     yield frame
-            if not stop_event.is_set():
-                raise RuntimeError("The MJPEG connection ended. Check that the phone camera server is still running.")
-        else:
-            # Release the initial probe response before polling /shot.jpg.
-            response.close()
-            # A /shot.jpg endpoint is polled at a modest rate.
-            while not stop_event.is_set():
-                try:
-                    shot = requests.get(url, timeout=(3, 5))
-                    shot.raise_for_status()
-                    frame = cv2.imdecode(np.frombuffer(shot.content, dtype=np.uint8), cv2.IMREAD_COLOR)
-                    shot.close()
-                    if frame is None:
-                        raise RuntimeError("The camera snapshot endpoint returned an invalid image.")
-                    yield frame
-                except requests.RequestException as error:
-                    raise RuntimeError(f"Could not read the camera snapshot: {error}") from error
+                if not stop_event.is_set() and not received_frame:
+                    raise requests.ConnectionError("The MJPEG stream closed without sending a frame.")
+            else:
+                image_bytes = response.content
+                frame = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if frame is None:
+                    raise RuntimeError("The camera snapshot endpoint returned an invalid image.")
+                retry_delay = 0.5
+                yield frame
                 stop_event.wait(interval)
-    finally:
-        response.close()
+
+        except requests.HTTPError:
+            # Invalid URLs, authentication failures, and missing endpoints need
+            # user correction; retrying them forever would hide the real issue.
+            raise
+        except (requests.RequestException, RuntimeError) as error:
+            if stop_event.is_set():
+                break
+            # Retry transient disconnects/timeouts with bounded exponential
+            # backoff. The camera worker remains alive while Wi-Fi recovers.
+            stop_event.wait(retry_delay)
+            retry_delay = min(retry_delay * 2, 5.0)
+        finally:
+            if response is not None:
+                response.close()
