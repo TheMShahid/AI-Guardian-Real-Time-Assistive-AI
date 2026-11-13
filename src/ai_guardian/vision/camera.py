@@ -132,6 +132,8 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
             if not stop_event.is_set():
                 raise RuntimeError("The MJPEG connection ended. Check that the phone camera server is still running.")
         else:
+            # Release the initial probe response before polling /shot.jpg.
+            response.close()
             # A /shot.jpg endpoint is polled at a modest rate.
             while not stop_event.is_set():
                 try:
