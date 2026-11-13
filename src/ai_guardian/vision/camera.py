@@ -86,6 +86,7 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
                 if ok and frame is not None:
                     failures = 0
                     yield frame
+                    stop_event.wait(interval)
                 else:
                     failures += 1
                     if failures >= 20:
@@ -113,8 +114,8 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
                     continue
                 buffer.extend(chunk)
                 while True:
-                    start = buffer.find(b"\\xff\\xd8")
-                    end = buffer.find(b"\\xff\\xd9", start + 2) if start >= 0 else -1
+                    start = buffer.find(b"\xff\xd8")
+                    end = buffer.find(b"\xff\xd9", start + 2) if start >= 0 else -1
                     if start < 0 or end < 0:
                         if len(buffer) > 12 * 1024 * 1024:
                             del buffer[:-2]
