@@ -71,7 +71,13 @@ class NetworkCameraWorker:
                     self.last_description = description
 
                 changed = signature != self._last_signature
-                if (self.speech_enabled and tracked and changed and now - self._last_spoken_at >= 2.5):
+                if (
+                    self.speech_enabled
+                    and tracked
+                    and changed
+                    and now - self._last_spoken_at >= 2.5
+                    and self._speech_future is None
+                ):
                     self._last_signature = signature
                     self._last_spoken_at = now
                     self._speech_future = self.speech_executor.submit(
