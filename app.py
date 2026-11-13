@@ -710,6 +710,8 @@ def wifi_live_panel():
         if status["audio"] is not None and status["audio_id"] > st.session_state.get("wifi_last_audio_id", 0):
             st.session_state.wifi_last_audio_id = status["audio_id"]
             st.audio(status["audio"], format=status["audio_mime"], autoplay=True)
+        if status.get("speech_error"):
+            st.warning("Scene detection is still running, but voice generation failed: " + status["speech_error"])
     elif status["running"]:
         st.info("Connecting to camera and loading the AI model. First startup can take a little longer.")
     if status["error"]:
