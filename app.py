@@ -27,6 +27,7 @@ from ai_guardian.audio.announcer import (
     text_to_speech_segments,
 )
 from ai_guardian.vision.detector import Detection, ObjectDetector
+from ai_guardian.vision.camera import capture_camera_frame
 from ai_guardian.vision.ocr import read_text_from_image
 
 
@@ -631,17 +632,16 @@ live_status_panel()
 st.divider()
 st.header("Wi-Fi IP camera")
 st.caption(
-    "Connect to an IP camera on the same local network using its RTSP stream URL. "
-    "This first milestone captures and analyzes a frame on demand; continuous RTSP "
-    "video is a later step."
+    "Connect to a local-network camera using RTSP/RTSPS or an HTTP image/MJPEG endpoint. "
+    "This milestone captures one frame on demand; continuous IP-camera video is a later step."
 )
 with st.form("wifi_ip_camera_form"):
-    rtsp_stream_url = st.text_input(
-        "RTSP camera URL",
-        placeholder="rtsp://camera-address:554/stream",
+    camera_stream_url = st.text_input(
+        "Camera URL (RTSP/RTSPS or HTTP)",
+        placeholder="http://192.168.1.100:8080/shot.jpg",
         type="password",
-        help="The URL is masked because it may contain a camera username and password. "
-             "It is used only by this running app session and is not displayed in results.",
+        help="Examples: HTTP snapshot /shot.jpg, HTTP MJPEG /video, or an RTSP stream URL. "
+             "The URL is masked because it may contain credentials.",
     )
     capture_wifi_frame = st.form_submit_button(
         "Connect and analyze Wi-Fi camera",
@@ -650,12 +650,12 @@ with st.form("wifi_ip_camera_form"):
     )
 
 if capture_wifi_frame:
-    if not rtsp_stream_url.strip():
-        st.warning("Enter the RTSP stream URL provided by your IP camera.")
+    if not camera_stream_url.strip():
+        st.warning("Enter your camera's RTSP URL or HTTP snapshot/MJPEG URL.")
     else:
         try:
             with st.spinner("Connecting to the Wi-Fi camera and reading a frame..."):
-                wifi_frame = capture_rtsp_frame(rtsp_stream_url)
+                wifi_frame = capture_camera_frame(camera_stream_url)
                 wifi_detector = load_detector(confidence)
                 wifi_annotated, wifi_detections = wifi_detector.detect(wifi_frame)
                 wifi_announcement = build_announcement(
