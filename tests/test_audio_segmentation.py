@@ -93,6 +93,7 @@ class SpeechSegmentationTests(unittest.TestCase):
         labels = [
             "person", "car", "bicycle", "dog", "chair", "bottle",
             "book", "laptop", "backpack", "cup", "clock", "vase",
+            "keyboard", "remote", "mouse", "toothbrush", "oven", "sink",
         ]
         detections = [
             Detection(label=label, confidence=0.8, box=(20 + i * 10, 20, 60 + i * 10, 80))
@@ -101,7 +102,7 @@ class SpeechSegmentationTests(unittest.TestCase):
         announcement = build_announcement(detections, frame_width=800)
         self.assertIn("person", announcement)
         self.assertIn("backpack", announcement)
-        self.assertIn("2 other object groups", announcement)
+        self.assertIn("3 other object groups", announcement)
 
 
 if __name__ == "__main__":
