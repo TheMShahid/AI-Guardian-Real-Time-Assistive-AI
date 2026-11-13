@@ -28,6 +28,7 @@ from ai_guardian.audio.announcer import (
 )
 from ai_guardian.vision.detector import Detection, ObjectDetector
 from ai_guardian.vision.camera import capture_camera_frame
+from ai_guardian.vision.network_stream import NetworkCameraWorker
 from ai_guardian.vision.ocr import read_text_from_image
 
 
@@ -630,55 +631,94 @@ live_status_panel()
 
 
 st.divider()
-st.header("Wi-Fi IP camera")
+st.header("Wi-Fi IP camera — continuous live assistant")
 st.caption(
-    "Connect to a local-network camera using RTSP/RTSPS or an HTTP image/MJPEG endpoint. "
-    "This milestone captures one frame on demand; continuous IP-camera video is a later step."
+    "Phone camera ko same Wi-Fi network par rakhein. IP Webcam ke liye /video (MJPEG) "
+    "recommended hai; /shot.jpg polling aur RTSP bhi supported hain. Start ke baad "
+    "frames continuously process honge, bilkul Live visual assistant ki tarah."
 )
-with st.form("wifi_ip_camera_form"):
-    camera_stream_url = st.text_input(
-        "Camera URL (RTSP/RTSPS or HTTP)",
-        placeholder="http://192.168.1.100:8080/shot.jpg",
-        type="password",
-        help="Examples: HTTP snapshot /shot.jpg, HTTP MJPEG /video, or an RTSP stream URL. "
-             "The URL is masked because it may contain credentials.",
-    )
-    capture_wifi_frame = st.form_submit_button(
-        "Connect and analyze Wi-Fi camera",
+
+camera_stream_url = st.text_input(
+    "Wi-Fi camera URL",
+    placeholder="http://10.10.36.52:8080/video",
+    type="password",
+    help="IP Webcam example: http://PHONE-IP:8080/video. URL credentials may be masked here.",
+    key="wifi_live_camera_url",
+)
+start_col, stop_col = st.columns(2)
+with start_col:
+    start_wifi_live = st.button(
+        "Start Wi-Fi live assistant",
         type="primary",
         use_container_width=True,
+        disabled=bool(st.session_state.get("wifi_camera_worker") and st.session_state.wifi_camera_worker.running),
+    )
+with stop_col:
+    stop_wifi_live = st.button(
+        "Stop Wi-Fi camera",
+        use_container_width=True,
+        disabled=not bool(st.session_state.get("wifi_camera_worker") and st.session_state.wifi_camera_worker.running),
     )
 
-if capture_wifi_frame:
+if start_wifi_live:
     if not camera_stream_url.strip():
-        st.warning("Enter your camera's RTSP URL or HTTP snapshot/MJPEG URL.")
+        st.warning("Pehle Wi-Fi camera URL enter karein.")
     else:
-        try:
-            with st.spinner("Connecting to the Wi-Fi camera and reading a frame..."):
-                wifi_frame = capture_camera_frame(camera_stream_url)
-                wifi_detector = load_detector(confidence)
-                wifi_annotated, wifi_detections = wifi_detector.detect(wifi_frame)
-                wifi_announcement = build_announcement(
-                    wifi_detections,
-                    wifi_frame.shape[1],
-                    language=assistant_language,
-                )
-                wifi_audio, wifi_mime, wifi_engine = render_speech(
-                    wifi_announcement, selected_voice, rate_value
-                )
+        old_worker = st.session_state.get("wifi_camera_worker")
+        if old_worker:
+            old_worker.stop()
+        worker = NetworkCameraWorker(
+            url=camera_stream_url,
+            confidence=confidence,
+            language=assistant_language,
+            voice=selected_voice,
+            rate=rate_value,
+            speech_enabled=speech_enabled,
+            speech_executor=SPEECH_EXECUTOR,
+        )
+        st.session_state.wifi_camera_worker = worker
+        worker.start()
+        st.rerun()
 
-            st.image(
-                wifi_annotated,
-                channels="BGR",
-                caption="Wi-Fi IP camera — analyzed frame",
-                use_container_width=True,
-            )
-            st.subheader("Wi-Fi camera scene description")
-            st.write(wifi_announcement)
-            st.caption("Speech engine: " + wifi_engine)
-            st.audio(wifi_audio, format=wifi_mime)
-        except Exception as error:
-            st.error("Wi-Fi camera connection or analysis failed: " + str(error))
+if stop_wifi_live:
+    worker = st.session_state.get("wifi_camera_worker")
+    if worker:
+        worker.stop()
+    st.rerun()
+
+
+@st.fragment(run_every="0.5s")
+def wifi_live_panel():
+    worker = st.session_state.get("wifi_camera_worker")
+    if worker is None:
+        st.info("Wi-Fi camera stopped. URL enter karke Start Wi-Fi live assistant press karein.")
+        return
+    status = worker.status()
+    if status["frame"] is not None:
+        st.image(
+            status["frame"],
+            channels="BGR",
+            caption="Live Wi-Fi camera — AI annotated stream",
+            width="stretch",
+        )
+        metrics = st.columns(3)
+        metrics[0].metric("Processed frames", status["frames"])
+        metrics[1].metric("AI latency", f'{status["inference_ms"]:.0f} ms')
+        metrics[2].metric("Connection", "Live" if status["running"] else "Stopped")
+        st.subheader("Live scene description")
+        st.write(status["description"])
+        if status["audio"] is not None and status["audio_id"] > st.session_state.get("wifi_last_audio_id", 0):
+            st.session_state.wifi_last_audio_id = status["audio_id"]
+            st.audio(status["audio"], format=status["audio_mime"], autoplay=True)
+    elif status["running"]:
+        st.info("Connecting to camera and loading the AI model. First startup can take a little longer.")
+    if status["error"]:
+        st.error("Wi-Fi camera pipeline: " + status["error"])
+    elif not status["running"] and status["frames"] == 0:
+        st.warning("Camera stopped before any frame was received. Check the URL and same-Wi-Fi connection.")
+
+
+wifi_live_panel()
 
 
 st.divider()
