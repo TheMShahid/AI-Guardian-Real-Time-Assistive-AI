@@ -107,7 +107,7 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
         if "multipart" in content_type or url.rstrip("/").endswith("/video"):
             buffer = bytearray()
             last_yield = 0.0
-            for chunk in response.iter_content(chunk_size=8192):
+            for chunk in response.iter_content(chunk_size=1024):
                 if stop_event.is_set():
                     break
                 if not chunk:
