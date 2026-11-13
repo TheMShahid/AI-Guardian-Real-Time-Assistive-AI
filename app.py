@@ -530,15 +530,19 @@ with camera_center:
         async_processing=True,
     )
 
-# Keep live playback immediately below the camera, not below the long status table.
+# This placeholder lives outside the fragment. Updating it from the fragment
+# avoids a full-app rerun when a new speech clip is ready, which previously
+# destroyed fragment instances and could recreate camera processors.
+live_audio_placeholder = st.empty()
+
 if st.session_state.get("latest_audio"):
-    st.subheader("🔊 Live voice announcement")
-    st.audio(
+    live_audio_placeholder.subheader("🔊 Live voice announcement")
+    live_audio_placeholder.audio(
         st.session_state["latest_audio"],
         format=st.session_state["latest_audio_mime"],
         autoplay=True,
     )
-    st.caption("Pause, resume, or replay using the audio controls.")
+    live_audio_placeholder.caption("Pause, resume, or replay using the audio controls.")
 
 st.header("Live assistant status")
 
@@ -627,7 +631,15 @@ def live_status_panel():
     # Keep the audio player outside this two-second fragment. Otherwise each
     # status refresh can recreate the player and interrupt a long announcement.
     if audio_ready:
-        st.rerun()
+        # Update only the external audio slot. Do not call st.rerun() here:
+        # a full rerun tears down Streamlit fragments and can reconnect cameras.
+        live_audio_placeholder.subheader("🔊 Live voice announcement")
+        live_audio_placeholder.audio(
+            st.session_state["latest_audio"],
+            format=st.session_state["latest_audio_mime"],
+            autoplay=True,
+        )
+        live_audio_placeholder.caption("Pause, resume, or replay using the audio controls.")
 
 
 live_status_panel()
