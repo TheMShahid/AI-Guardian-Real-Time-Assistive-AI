@@ -10,7 +10,7 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from ai_guardian.vision.camera import capture_camera_frame
+from ai_guardian.vision.camera import capture_camera_frame, iter_camera_frames
 
 
 class CameraCaptureTests(unittest.TestCase):
@@ -43,6 +43,25 @@ class CameraCaptureTests(unittest.TestCase):
         frame = capture_camera_frame("http://192.168.1.10:8080/video")
 
         self.assertIs(frame, expected)
+        response.close.assert_called_once()
+
+    @patch("ai_guardian.vision.camera.cv2.imdecode")
+    @patch("ai_guardian.vision.camera.requests.get")
+    def test_continuous_mjpeg_iterator_yields_frames(self, mock_get, mock_decode):
+        response = Mock()
+        response.headers = {"Content-Type": "multipart/x-mixed-replace; boundary=frame"}
+        jpeg = b"frame" + bytes([0xFF, 0xD8]) + b"jpeg" + bytes([0xFF, 0xD9])
+        response.iter_content.return_value = [jpeg]
+        mock_get.return_value = response
+        expected = np.zeros((10, 10, 3), dtype=np.uint8)
+        mock_decode.return_value = expected
+        stop_event = __import__("threading").Event()
+
+        frames = iter_camera_frames("http://192.168.1.10:8080/video", stop_event)
+        self.assertIs(next(frames), expected)
+        stop_event.set()
+        with self.assertRaises(StopIteration):
+            next(frames)
         response.close.assert_called_once()
 
     def test_invalid_scheme_is_rejected(self):
