@@ -33,3 +33,8 @@ runs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
