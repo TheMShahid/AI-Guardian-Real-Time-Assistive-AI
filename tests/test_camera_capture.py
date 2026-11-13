@@ -64,6 +64,33 @@ class CameraCaptureTests(unittest.TestCase):
             next(frames)
         response.close.assert_called_once()
 
+    @patch("ai_guardian.vision.camera.cv2.imdecode")
+    @patch("ai_guardian.vision.camera.requests.get")
+    def test_mjpeg_content_length_extracts_exact_frame(self, mock_get, mock_decode):
+        response = Mock()
+        response.headers = {"Content-Type": "multipart/x-mixed-replace; boundary=frame"}
+        jpeg = bytes([0xFF, 0xD8]) + b"jpeg-payload" + bytes([0xFF, 0xD9])
+        part = (
+            b"--frame\r\nContent-Type: image/jpeg\r\n"
+            + f"Content-Length: {len(jpeg)}".encode()
+            + b"\r\n\r\n"
+            + jpeg
+            + b"\r\n"
+        )
+        response.iter_content.return_value = [part]
+        mock_get.return_value = response
+        expected = np.zeros((10, 10, 3), dtype=np.uint8)
+        mock_decode.return_value = expected
+        stop_event = __import__("threading").Event()
+
+        frames = iter_camera_frames("http://192.168.1.10:8080/video", stop_event)
+        self.assertIs(next(frames), expected)
+        stop_event.set()
+        with self.assertRaises(StopIteration):
+            next(frames)
+        decoded_bytes = mock_decode.call_args.args[0].tobytes()
+        self.assertEqual(decoded_bytes, jpeg)
+
     def test_invalid_scheme_is_rejected(self):
         with self.assertRaises(ValueError):
             capture_camera_frame("ftp://192.168.1.10/video")
