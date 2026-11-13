@@ -35,6 +35,7 @@ class NetworkCameraWorker:
         self._last_signature = None
         self._last_spoken_at = 0.0
         self._speech_future = None
+        self.speech_error = ''
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -49,8 +50,8 @@ class NetworkCameraWorker:
 
     def _run(self):
         try:
-            self.detector = ObjectDetector(confidence=self.confidence)
-            for frame in iter_camera_frames(self.url, self.stop_event, target_fps=5):
+            self.detector = ObjectDetector(confidence=self.confidence, image_size=320)
+            for frame in iter_camera_frames(self.url, self.stop_event, target_fps=3):
                 if self.stop_event.is_set():
                     break
                 started = time.perf_counter()
@@ -61,7 +62,15 @@ class NetworkCameraWorker:
                     for item in tracked
                 ]
                 description = build_announcement(detections, frame.shape[1], language=self.language)
-                signature = tuple(sorted((item.label, round(item.box[0] / max(1, frame.shape[1]) * 5)) for item in tracked))
+                scene_groups = {}
+                for item in tracked:
+                    centre_x = (item.box[0] + item.box[2]) / 2
+                    region = "left" if centre_x < frame.shape[1] * 0.35 else (
+                        "right" if centre_x > frame.shape[1] * 0.65 else "centre"
+                    )
+                    key = (item.label.lower().replace("_", " "), region)
+                    scene_groups[key] = scene_groups.get(key, 0) + 1
+                signature = tuple(sorted((label, region, count) for (label, region), count in scene_groups.items()))
                 now = time.monotonic()
 
                 with self.lock:
@@ -75,7 +84,7 @@ class NetworkCameraWorker:
                     self.speech_enabled
                     and tracked
                     and changed
-                    and now - self._last_spoken_at >= 2.5
+                    and now - self._last_spoken_at >= 1.5
                     and self._speech_future is None
                 ):
                     self._last_signature = signature
@@ -83,6 +92,7 @@ class NetworkCameraWorker:
                     self._speech_future = self.speech_executor.submit(
                         text_to_speech_audio, description, self.voice, self.rate
                     )
+                # TTS failures must never terminate the camera/detection loop.
                 if self._speech_future and self._speech_future.done():
                     try:
                         audio, mime, _engine = self._speech_future.result()
@@ -90,6 +100,10 @@ class NetworkCameraWorker:
                             self.latest_audio = audio
                             self.latest_audio_mime = mime
                             self.audio_id += 1
+                            self.speech_error = ""
+                    except Exception as speech_error:
+                        with self.lock:
+                            self.speech_error = f"{type(speech_error).__name__}: {speech_error}"
                     finally:
                         self._speech_future = None
         except Exception as error:
@@ -110,4 +124,5 @@ class NetworkCameraWorker:
                 "audio": self.latest_audio,
                 "audio_mime": self.latest_audio_mime,
                 "audio_id": self.audio_id,
+                "speech_error": self.speech_error,
             }
