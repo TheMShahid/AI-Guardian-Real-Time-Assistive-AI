@@ -1,9 +1,14 @@
 """Tests for HTTP camera frame capture adapters."""
 
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from ai_guardian.vision.camera import capture_camera_frame
 
