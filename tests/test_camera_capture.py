@@ -35,7 +35,7 @@ class CameraCaptureTests(unittest.TestCase):
     def test_http_mjpeg_endpoint_extracts_first_jpeg(self, mock_get, mock_decode):
         response = Mock()
         response.headers = {"Content-Type": "multipart/x-mixed-replace; boundary=frame"}
-        response.iter_content.return_value = [b"noise\\xff\\xd8jpeg-frame\\xff\\xd9tail"]
+        response.iter_content.return_value = [b"noise" + bytes([0xFF, 0xD8]) + b"jpeg-frame" + bytes([0xFF, 0xD9]) + b"tail"]
         mock_get.return_value = response
         expected = np.zeros((10, 10, 3), dtype=np.uint8)
         mock_decode.return_value = expected
