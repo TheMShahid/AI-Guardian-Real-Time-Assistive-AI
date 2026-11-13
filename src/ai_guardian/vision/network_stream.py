@@ -36,6 +36,8 @@ class NetworkCameraWorker:
         self.latest_audio_mime = "audio/mpeg"
         self.audio_id = 0
         self._last_signature = None
+        self._pending_signature = None
+        self._pending_signature_since = 0.0
         self._last_spoken_at = 0.0
         self._speech_future = None
         self._speech_retry_after = 0.0
@@ -113,17 +115,28 @@ class NetworkCameraWorker:
                     self.inference_ms = latency
                     self.last_description = description
 
-                changed = signature != self._last_signature
-                periodic_recap_due = now - self._last_spoken_at >= 12.0
+                # Debounce scene changes so tiny detector/box fluctuations do
+                # not trigger repeated speech. A scene must remain unchanged
+                # for 0.7 seconds before it is eligible for an announcement.
+                if signature != self._pending_signature:
+                    self._pending_signature = signature
+                    self._pending_signature_since = now
+
+                scene_is_stable = now - self._pending_signature_since >= 0.7
+                scene_changed = signature != self._last_signature
                 retry_due = now >= self._speech_retry_after
+                speech_cooldown_finished = now - self._last_spoken_at >= 3.0
                 should_speak = (
                     self.speech_enabled
-                    and bool(tracked)
-                    and (changed or periodic_recap_due or bool(self.speech_error))
+                    and scene_is_stable
+                    and (scene_changed or bool(self.speech_error))
+                    and speech_cooldown_finished
                     and retry_due
                     and self._speech_future is None
                 )
                 if should_speak:
+                    # Remember the signature when queued, not after playback,
+                    # so a slow TTS request cannot enqueue the same scene again.
                     self._last_signature = signature
                     self._last_spoken_at = now
                     self._speech_future = self.speech_executor.submit(
