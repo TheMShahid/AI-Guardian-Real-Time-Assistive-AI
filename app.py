@@ -276,7 +276,10 @@ class LiveObjectDetector(VideoProcessorBase):
 
     def __init__(self):
         model_load_started = time.perf_counter()
-        self.detector = ObjectDetector(confidence=confidence)
+        # Reuse the process-wide detector when Streamlit recreates the
+        # WebRTC processor during reruns/reconnections. This avoids repeatedly
+        # loading and fusing the same YOLO weights for the browser camera.
+        self.detector = load_detector(confidence)
         self.model_load_seconds = time.perf_counter() - model_load_started
         self.last_inference_ms = 0.0
         self.lock = threading.Lock()
