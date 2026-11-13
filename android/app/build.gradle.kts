@@ -37,16 +37,17 @@ kotlin {
 dependencies {
     val cameraXVersion = "1.6.2"
     val activityVersion = "1.13.0"
-    val lifecycleVersion = "2.11.0"
+    val lifecycleVersion = "2.10.0"
+    val composeVersion = "1.11.4"
 
-    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:$activityVersion")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:$lifecycleVersion")
 
-    implementation("androidx.compose.ui:ui:1.12.1")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
-    implementation("androidx.compose.foundation:foundation:1.12.1")
+    implementation("androidx.compose.ui:ui:$composeVersion")
+    implementation("androidx.compose.ui:ui-tooling-preview:$composeVersion")
+    implementation("androidx.compose.foundation:foundation:$composeVersion")
     implementation("androidx.compose.material3:material3:1.4.0")
 
     implementation("androidx.camera:camera-core:$cameraXVersion")
@@ -54,5 +55,5 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraXVersion")
     implementation("androidx.camera:camera-view:$cameraXVersion")
 
-    debugImplementation("androidx.compose.ui:ui-tooling:1.12.1")
+    debugImplementation("androidx.compose.ui:ui-tooling:$composeVersion")
 }
