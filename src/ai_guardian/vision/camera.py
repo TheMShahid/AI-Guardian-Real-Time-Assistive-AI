@@ -84,10 +84,10 @@ def _iter_mjpeg_response(response, stop_event, interval):
         buffer.extend(chunk)
 
         while not stop_event.is_set():
-            header_end = buffer.find(b"\\r\\n\\r\\n")
+            header_end = buffer.find(b"\r\n\r\n")
             separator_size = 4
             if header_end < 0:
-                header_end = buffer.find(b"\\n\\n")
+                header_end = buffer.find(b"\n\n")
                 separator_size = 2
 
             jpeg = None
@@ -110,8 +110,8 @@ def _iter_mjpeg_response(response, stop_event, interval):
                     del buffer[:body_end]
 
             if jpeg is None:
-                start = buffer.find(b"\\xff\\xd8")
-                end = buffer.find(b"\\xff\\xd9", start + 2) if start >= 0 else -1
+                start = buffer.find(b"\xff\xd8")
+                end = buffer.find(b"\xff\xd9", start + 2) if start >= 0 else -1
                 if start < 0 or end < 0:
                     if len(buffer) > 12 * 1024 * 1024:
                         del buffer[:-2]
@@ -119,7 +119,7 @@ def _iter_mjpeg_response(response, stop_event, interval):
                 jpeg = bytes(buffer[start:end + 2])
                 del buffer[:end + 2]
 
-            if not jpeg.startswith(b"\\xff\\xd8") or not jpeg.endswith(b"\\xff\\xd9"):
+            if not jpeg.startswith(b"\xff\xd8") or not jpeg.endswith(b"\xff\xd9"):
                 consecutive_bad_frames += 1
                 if consecutive_bad_frames >= 30:
                     raise RuntimeError("The MJPEG camera repeatedly sent incomplete JPEG frames.")
