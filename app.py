@@ -266,6 +266,59 @@ def render_audio_playlist(audio_segments, title: str = "Complete speech playback
     components.html(playlist_html, height=118, scrolling=False)
 
 
+
+def render_browser_camera_preview(camera_url: str):
+    """Render an HTTP camera stream directly in the browser, outside Streamlit reruns."""
+    normalized_url = camera_url.strip()
+    safe_url = json.dumps(normalized_url).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    preview_html = """
+    <!doctype html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          html, body { margin: 0; padding: 0; background: #101722; }
+          .preview { width: 100%; height: 430px; display: flex; align-items: center;
+                     justify-content: center; overflow: hidden; border-radius: 12px; }
+          img { display: block; width: 100%; height: 100%; object-fit: contain; }
+          .status { color: #d8e1eb; font: 13px Arial, sans-serif; padding: 7px 2px; }
+        </style>
+      </head>
+      <body>
+        <div class="preview"><img id="camera-feed" alt="Live camera video"></div>
+        <div id="camera-status" class="status" role="status" aria-live="polite">
+          Connecting directly to the camera stream...
+        </div>
+        <script>
+          const streamUrl = __STREAM_URL__;
+          const feed = document.getElementById("camera-feed");
+          const status = document.getElementById("camera-status");
+          const isSnapshot = /\\/shot\\.jpg(?:$|\\?)/i.test(streamUrl);
+          let retryTimer = null;
+
+          function connect() {
+            const separator = streamUrl.includes("?") ? "&" : "?";
+            feed.src = isSnapshot
+              ? streamUrl + separator + "_ai_guardian=" + Date.now()
+              : streamUrl;
+          }
+
+          feed.onload = () => { status.textContent = "Camera video is being received directly by your browser."; };
+          feed.onerror = () => {
+            status.textContent = "Camera stream unavailable. Retrying...";
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(connect, 1500);
+          };
+
+          connect();
+          if (isSnapshot) setInterval(connect, 600);
+        </script>
+      </body>
+    </html>
+    """.replace("__STREAM_URL__", safe_url)
+    components.html(preview_html, height=470, scrolling=False)
+
+
 @st.cache_resource
 def load_detector(confidence_value: float):
     return ObjectDetector(confidence=confidence_value)
@@ -693,31 +746,42 @@ if start_wifi_live:
         )
         st.session_state.wifi_camera_worker = worker
         worker.start()
-        st.rerun()
+        # The button interaction already triggered this app run; a second
+        # st.rerun() here would tear down fragments and camera components.
 
 if stop_wifi_live:
     worker = st.session_state.get("wifi_camera_worker")
     if worker:
         worker.stop()
-    st.rerun()
+    # Do not force a second full-app rerun after the button-triggered rerun.
 
-
-@st.fragment(run_every="0.15s")
-def wifi_live_panel():
-    worker = st.session_state.get("wifi_camera_worker")
-    if worker is None:
-        st.info("Wi-Fi camera stopped. URL enter karke Start Wi-Fi live assistant press karein.")
-        return
-    status = worker.status()
-    if status["frame"] is not None:
-        st.image(
-            status["frame"],
-            channels="BGR",
-            caption="Live Wi-Fi camera — AI annotated stream",
-            width="stretch",
+# Keep the video element outside the polling fragment. The browser consumes
+# the phone's MJPEG stream continuously; Streamlit only refreshes AI status.
+wifi_worker = st.session_state.get("wifi_camera_worker")
+if wifi_worker is not None:
+    st.subheader("Live Wi-Fi camera preview")
+    if camera_stream_url.strip().lower().startswith(("http://", "https://")):
+        render_browser_camera_preview(camera_stream_url)
+        st.caption(
+            "Video is rendered directly by your browser. AI detection and scene "
+            "updates run separately, so slower inference should not freeze this preview."
         )
+    else:
+        st.warning(
+            "RTSP can be processed by the AI worker, but browsers cannot display "
+            "RTSP directly. Use the camera's HTTP MJPEG /video URL for a continuous preview."
+        )
+
+    @st.fragment(run_every="1s")
+    def wifi_live_status_panel():
+        worker = st.session_state.get("wifi_camera_worker")
+        if worker is None:
+            st.info("Wi-Fi camera stopped.")
+            return
+
+        status = worker.status()
         metrics = st.columns(4)
-        metrics[0].metric("Processed frames", status["frames"])
+        metrics[0].metric("AI processed frames", status["frames"])
         metrics[1].metric("AI latency", f'{status["inference_ms"]:.0f} ms')
         metrics[2].metric(
             "Camera",
@@ -727,27 +791,29 @@ def wifi_live_panel():
             "AI model",
             "Ready" if status.get("model_load_seconds", 0) > 0 else "Loading",
         )
+
         if status.get("camera_connected") and status.get("model_load_seconds", 0) == 0:
-            st.info("Camera is already connected. AI model is loading in the background; live preview is available.")
+            st.info("Camera connected. AI model is loading; browser video preview remains independent.")
         elif status.get("model_load_seconds", 0) > 0:
             st.caption(f'AI model loaded in {status["model_load_seconds"]:.1f} seconds.')
+
         st.subheader("Live scene description")
         st.write(status["description"])
+
         if status["audio"] is not None and status["audio_id"] > st.session_state.get("wifi_last_audio_id", 0):
             st.session_state.wifi_last_audio_id = status["audio_id"]
             st.audio(status["audio"], format=status["audio_mime"], autoplay=True)
+
         if status.get("speech_error"):
             st.warning("Scene detection is still running, but voice generation failed: " + status["speech_error"])
-    elif status["running"]:
-        st.info("Connecting to camera and loading the AI model. First startup can take a little longer.")
-    if status["error"]:
-        st.error("Wi-Fi camera pipeline: " + status["error"])
-    elif not status["running"] and status["frames"] == 0:
-        st.warning("Camera stopped before any frame was received. Check the URL and same-Wi-Fi connection.")
+        if status["error"]:
+            st.error("Wi-Fi camera pipeline: " + status["error"])
+        elif not status["running"] and status["frames"] == 0:
+            st.warning("Camera stopped before any frame was received. Check the URL and same-Wi-Fi connection.")
 
-
-wifi_live_panel()
-
+    wifi_live_status_panel()
+else:
+    st.info("Wi-Fi camera stopped. Enter its HTTP /video URL and press Start Wi-Fi live assistant.")
 
 st.divider()
 st.header("On-demand scene description")
