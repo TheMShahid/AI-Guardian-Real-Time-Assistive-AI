@@ -107,6 +107,7 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
         if "multipart" in content_type or url.rstrip("/").endswith("/video"):
             buffer = bytearray()
             last_yield = 0.0
+            consecutive_bad_frames = 0
             for chunk in response.iter_content(chunk_size=1024):
                 if stop_event.is_set():
                     break
@@ -114,21 +115,63 @@ def iter_camera_frames(camera_url: str, stop_event, target_fps: float = 5.0):
                     continue
                 buffer.extend(chunk)
                 while True:
-                    start = buffer.find(b"\xff\xd8")
-                    end = buffer.find(b"\xff\xd9", start + 2) if start >= 0 else -1
-                    if start < 0 or end < 0:
-                        if len(buffer) > 12 * 1024 * 1024:
-                            del buffer[:-2]
-                        break
-                    jpeg = bytes(buffer[start:end + 2])
-                    del buffer[:end + 2]
+                    # Prefer MIME part boundaries and Content-Length when the
+                    # camera supplies them. This prevents cutting a JPEG at a
+                    # marker-like byte sequence in the multipart stream.
+                    header_end = buffer.find(b"\\r\\n\\r\\n")
+                    separator_size = 4
+                    if header_end < 0:
+                        header_end = buffer.find(b"\\n\\n")
+                        separator_size = 2
+
+                    jpeg = None
+                    if header_end >= 0:
+                        headers = bytes(buffer[:header_end]).lower()
+                        length_value = None
+                        for header_line in headers.splitlines():
+                            if header_line.startswith(b"content-length:"):
+                                try:
+                                    length_value = int(header_line.split(b":", 1)[1].strip())
+                                except ValueError:
+                                    length_value = None
+                                break
+                        if length_value is not None and length_value > 0:
+                            body_start = header_end + separator_size
+                            body_end = body_start + length_value
+                            if len(buffer) < body_end:
+                                break
+                            jpeg = bytes(buffer[body_start:body_end])
+                            del buffer[:body_end]
+                    if jpeg is None:
+                        # Compatibility fallback for MJPEG servers that omit
+                        # Content-Length. Keep partial JPEG data until EOI.
+                        start = buffer.find(b"\\xff\\xd8")
+                        end = buffer.find(b"\\xff\\xd9", start + 2) if start >= 0 else -1
+                        if start < 0 or end < 0:
+                            if len(buffer) > 12 * 1024 * 1024:
+                                del buffer[:-2]
+                            break
+                        jpeg = bytes(buffer[start:end + 2])
+                        del buffer[:end + 2]
+
+                    if not jpeg.startswith(b"\\xff\\xd8") or not jpeg.endswith(b"\\xff\\xd9"):
+                        consecutive_bad_frames += 1
+                        if consecutive_bad_frames >= 30:
+                            raise RuntimeError("The MJPEG camera repeatedly sent incomplete JPEG frames.")
+                        continue
+
                     now = time.monotonic()
                     if now - last_yield < interval:
                         continue
                     frame = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                    if frame is not None:
-                        last_yield = now
-                        yield frame
+                    if frame is None:
+                        consecutive_bad_frames += 1
+                        if consecutive_bad_frames >= 30:
+                            raise RuntimeError("The MJPEG camera repeatedly sent JPEG frames that could not be decoded.")
+                        continue
+                    consecutive_bad_frames = 0
+                    last_yield = now
+                    yield frame
             if not stop_event.is_set():
                 raise RuntimeError("The MJPEG connection ended. Check that the phone camera server is still running.")
         else:
