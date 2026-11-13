@@ -11,7 +11,7 @@ AI Guardian is an experimental camera-based visual-awareness system for blind an
 - Cloud-friendly inference throttling targets up to 5 AI inference passes per second; intermediate camera frames reuse the latest annotated result.
 - Lazy-loads the Ultralytics model package when the live processor starts rather than during the initial page import.
 - Live browser camera streaming through WebRTC.
-- On-demand Wi-Fi IP-camera frame capture over RTSP/RTSPS, HTTP JPEG snapshots, or HTTP MJPEG streams, followed by YOLO scene analysis and spoken description; the app must run on a computer that can reach the camera on the same network.
+- Continuous Wi-Fi IP-camera visual awareness over RTSP/RTSPS, HTTP MJPEG, or polled HTTP JPEG snapshots, with YOLO annotations and background voice announcements; the app host must reach the camera on the same network.
 - Bluetooth headset playback through the operating system's selected audio output; pair the headset in device settings and use the Test voice control. The Streamlit browser app does not perform Bluetooth pairing.
 - Object association across frames with ByteTrack; raw detections remain available for scene announcements even before a persistent track ID is assigned.
 - Live AI inference-latency and model-initialization telemetry to distinguish slow model startup from slow per-frame inference.
@@ -99,7 +99,7 @@ Replace the example values with credentials from Cloudflare Calls TURN. Do not c
 - Community Cloud is a shared environment. Model loading and live inference may be slower than on a capable local computer. Inference is deliberately throttled to reduce CPU pressure, so the annotated preview is not guaranteed to update at the camera's full frame rate.
 - YOLO model weights are downloaded by Ultralytics on first use; the first camera start may take longer.
 - Browser camera permission and a working WebRTC network path are required.
-- Wi-Fi IP-camera support currently captures one frame on demand from RTSP/RTSPS, HTTP JPEG snapshot endpoints (for example, `/shot.jpg`), or HTTP MJPEG endpoints (for example, `/video`). It does not provide continuous IP-camera playback. The Streamlit host must be able to reach the camera over the local network; a cloud-hosted app normally cannot reach a private home-network camera.
+- Wi-Fi IP-camera live mode continuously reads RTSP/RTSPS, HTTP MJPEG (recommended for IP Webcam: `/video`), or polls HTTP JPEG snapshots (for example, `/shot.jpg`). It runs YOLO in a background worker, refreshes annotated frames in the dashboard, and generates voice announcements asynchronously. The Streamlit host must reach the camera over the local network; a cloud-hosted app normally cannot reach a private home-network camera.
 - Bluetooth pairing and audio-route selection are handled by Windows/Android/iOS settings. The app can play speech through the system-selected output but cannot manage pairing.
 - A TURN service may be necessary on restrictive networks. TURN credentials are not bundled with this repository.
 - Browser autoplay policies may block the first spoken announcement. Use the audio player's Play control if needed.
@@ -123,7 +123,7 @@ The list should include `eng`, `urd`, and `pus`. On Debian/Ubuntu, `packages.txt
 - Automatic live voice: enables or disables spoken scene updates.
 - Speech voice / speed: selects neural voice and delivery rate.
 - Test voice: checks speech generation independently of the camera.
-- Wi-Fi IP camera: enter an RTSP/RTSPS URL, HTTP JPEG snapshot URL, or HTTP MJPEG URL to capture and analyze one frame. For IP Webcam, use `http://PHONE_IP:8080/shot.jpg` or `http://PHONE_IP:8080/video`. The URL field is masked because it may contain credentials.
+- Wi-Fi IP camera: enter the camera URL and press **Start Wi-Fi live assistant**; press **Stop Wi-Fi camera** to end the stream. For IP Webcam, use `http://PHONE_IP:8080/video` (recommended) or `http://PHONE_IP:8080/shot.jpg`. RTSP/RTSPS is also supported. The URL field is masked because it may contain credentials.
 - On-demand scene description: captures and analyzes a still image.
 - Read visible text: extracts printed text from the captured image and reads it aloud.
 
