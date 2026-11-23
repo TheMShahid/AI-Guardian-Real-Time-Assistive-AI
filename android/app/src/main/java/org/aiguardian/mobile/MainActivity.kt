@@ -225,6 +225,18 @@ private fun GuardianHome(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
 
+    // Keep the LiteRT-LM engine alive across scene requests. Reinitializing a
+    // 500M-parameter VLM for every button press adds avoidable startup latency.
+    val vlmSceneAnalyzer = remember(context.applicationContext) {
+        VlmSceneAnalyzer(context.applicationContext)
+    }
+
+    DisposableEffect(vlmSceneAnalyzer) {
+        onDispose {
+            vlmSceneAnalyzer.close()
+        }
+    }
+
     // Persistent application preferences.
     val preferences = remember {
         context.getSharedPreferences(
@@ -598,9 +610,7 @@ LaunchedEffect(
             val result = withContext(Dispatchers.IO) {
                 try {
                     Result.success(
-                        VlmSceneAnalyzer(context).use { analyzer ->
-                            analyzer.describeScene(snapshot)
-                        }
+                        vlmSceneAnalyzer.describeScene(snapshot)
                     )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
