@@ -98,7 +98,8 @@ object SpeechLocalizer {
         direction: String,
         apparentProximity: String,
         language: String,
-        appearsToApproach: Boolean = false
+        appearsToApproach: Boolean = false,
+        distanceText: String? = null
     ): String {
         val normalizedLabel = label.trim().lowercase()
         val name = when (language) {
@@ -107,22 +108,25 @@ object SpeechLocalizer {
             else -> label
         }
         val directionText = directionPhrase(direction, language)
+        val spokenName = if (!distanceText.isNullOrBlank()) {
+            "$name، $distanceText"
+        } else name
 
         if (appearsToApproach) {
             return when (language) {
                 "Urdu (Pakistan)" ->
-                    "توجہ دیں! $directionText $name کا سائز بڑھتا دکھائی دے رہا ہے، یعنی یہ قریب آتا ہوا ہو سکتا ہے۔ براہِ کرم رک جائیں اور راستہ خود چیک کریں۔"
+                    "توجہ دیں! $directionText $spokenName کا سائز بڑھتا دکھائی دے رہا ہے، یعنی یہ قریب آتا ہوا ہو سکتا ہے۔ براہِ کرم رک جائیں اور راستہ خود چیک کریں۔"
                 "Pashto (Afghanistan)" ->
-                    "پام وکړئ! $name ستاسو $directionText لوی ښکاري او ښايي رانږدې کېږي. مهرباني وکړئ ودرېږئ او لاره وګورئ."
+                    "پام وکړئ! $spokenName ستاسو $directionText لوی ښکاري او ښايي رانږدې کېږي. مهرباني وکړئ ودرېږئ او لاره وګورئ."
                 else ->
-                    "Attention. The $name appears to be getting closer, $directionText. Please stop and check your path."
+                    "Attention. The $spokenName appears to be getting closer, $directionText. Please stop and check your path."
             }
         }
 
         return when (apparentProximity) {
             "very-close-looking" -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "احتیاط! $directionText $name قریب ہے۔ براہِ کرم رکیں اور آگے بڑھنے سے پہلے راستہ دیکھ لیں۔"
+                    "احتیاط! $directionText $spokenName قریب ہے۔ براہِ کرم رکیں اور آگے بڑھنے سے پہلے راستہ دیکھ لیں۔"
                 "Pashto (Afghanistan)" ->
                     "احتیاط، $name ستاسو $directionText ډېر نږدې ښکاري. کره واټن نه دی معلوم. مهرباني وکړئ ودرېږئ او لاره وګورئ."
                 else ->
@@ -132,17 +136,17 @@ object SpeechLocalizer {
                 "Urdu (Pakistan)" ->
                     "$directionText $name ہے۔ یہ قریب دکھائی دے رہی ہے؛ آگے بڑھنے سے پہلے احتیاط کریں۔"
                 "Pashto (Afghanistan)" ->
-                    "$name ستاسو $directionText ښکاري. داسې برېښي چې نږدې دی، خو کره واټن نه دی معلوم. مخکې له تګ څخه لاره وګورئ."
+                    "$spokenName ستاسو $directionText ښکاري. داسې برېښي چې نږدې دی، خو کره واټن نه دی معلوم. مخکې له تګ څخه لاره وګورئ."
                 else ->
-                    "The $name is $directionText. It appears relatively close, but its exact distance is unknown. Check the path before moving."
+                    "The $spokenName is $directionText. It appears relatively close, but its exact distance is unknown. Check the path before moving."
             }
             else -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "$directionText $name نظر آ رہی ہے۔ یہ نسبتاً دور دکھائی دیتی ہے۔ درست فاصلہ معلوم نہیں۔"
+                    "$directionText $spokenName نظر آ رہی ہے۔ یہ نسبتاً دور دکھائی دیتی ہے۔ درست فاصلہ معلوم نہیں۔"
                 "Pashto (Afghanistan)" ->
-                    "$name ستاسو $directionText ښکاري. داسې برېښي چې لږ لرې دی؛ کمره کره واټن نه شي معلومولی."
+                    "$spokenName ستاسو $directionText ښکاري. داسې برېښي چې لږ لرې دی؛ کمره کره واټن نه شي معلومولی."
                 else ->
-                    "The $name is visible $directionText. It appears farther away; the camera cannot measure its exact distance."
+                    "The $spokenName is visible $directionText. It appears farther away; the camera cannot measure its exact distance."
             }
         }
     }
