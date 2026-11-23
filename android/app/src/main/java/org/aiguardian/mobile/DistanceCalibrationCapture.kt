@@ -37,6 +37,9 @@ data class DistanceCalibrationCapture(
                 frameWidthPixels <= 0 || frameHeightPixels <= 0 ||
                 !boxLeftPixels.isFinite() || !boxTopPixels.isFinite() ||
                 !boxRightPixels.isFinite() || !boxBottomPixels.isFinite() ||
+                boxLeftPixels < 0f || boxTopPixels < 0f ||
+                boxRightPixels > frameWidthPixels.toFloat() ||
+                boxBottomPixels > frameHeightPixels.toFloat() ||
                 boxRightPixels <= boxLeftPixels || boxBottomPixels <= boxTopPixels
             ) return null
 
