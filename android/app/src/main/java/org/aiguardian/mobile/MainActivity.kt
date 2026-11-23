@@ -1039,7 +1039,7 @@ LaunchedEffect(
                                 )
                             } else if (voiceAnnouncements) {
                                 voiceAssistant.speak(
-                                    "Calibration sample captured. Open Settings to enter its measured height and distance.",
+                                    "Calibration sample for ${distanceCalibrationCapture?.referenceLabel ?: "object"} captured. Open Settings and enter its measured height and distance.",
                                     flushQueue = true,
                                     utteranceId = "distance-calibration-captured"
                                 )
@@ -1063,12 +1063,14 @@ LaunchedEffect(
                             DistanceCalibrationStore.saveStrideLength(context, stride)
                             distanceCalibration = calibration
                             strideLengthMeters = stride
+                            distanceCalibrationCapture = null
                             announcedSpatialItems = emptySet()
                             announcedApproachItems = emptySet()
                         },
                         onClearDistanceCalibration = {
                             DistanceCalibrationStore.clearCalibration(context)
                             distanceCalibration = null
+                            distanceCalibrationCapture = null
                         },
                         themeMode = themeMode,
                         onThemeModeChange = onThemeModeChange,
