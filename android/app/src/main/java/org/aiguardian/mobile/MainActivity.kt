@@ -653,7 +653,8 @@ LaunchedEffect(
 if (voiceAnnouncements && ttsReady) {
     voiceAssistant.speak(
         sceneDescription,
-        flushQueue = true,
+        // Scene narration must wait for an active obstacle instruction to finish.
+        flushQueue = false,
         utteranceId = "guardian-scene-description"
     )
 } else {
@@ -859,7 +860,7 @@ LaunchedEffect(
     }
 
     val spokenParts = mutableListOf<String>()
-    newItems.take(2).forEach { obstacle ->
+    newItems.take(1).forEach { obstacle ->
         spokenParts += SpeechLocalizer.localizeObstacle(
             label = obstacle.detection.label,
             direction = obstacle.direction,
@@ -877,7 +878,9 @@ LaunchedEffect(
 
     val accepted = voiceAssistant.speak(
         spokenParts.joinToString(" "),
-        flushQueue = newItems.isNotEmpty(),
+        // Finish the current spoken instruction before starting another one.
+        // New detections are queued instead of interrupting an active utterance.
+        flushQueue = false,
         utteranceId = if (urgentItems.isNotEmpty()) {
             "guardian-urgent-obstacle"
         } else if (newItems.isNotEmpty()) {
