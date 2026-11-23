@@ -1,4 +1,3 @@
-
 package org.aiguardian.mobile
 
 import android.content.Context
@@ -36,6 +35,8 @@ class YoloImageAnalyzer(
         }
 
     private var lastAnalysisTime = 0L
+    private var rgbaRowBuffer = ByteArray(0)
+    private var pixelBuffer = IntArray(0)
 
     @Volatile
     private var closed = false
@@ -46,17 +47,11 @@ class YoloImageAnalyzer(
             if (closed) return
 
             val currentTime = SystemClock.elapsedRealtime()
-
-            if (currentTime - lastAnalysisTime < MIN_INTERVAL_MS) {
-                return
-            }
-
+            if (currentTime - lastAnalysisTime < MIN_INTERVAL_MS) return
             lastAnalysisTime = currentTime
 
             val startTime = SystemClock.elapsedRealtime()
-
-            val sourceTransform =
-                transformFactory.getOutputTransform(image)
+            val sourceTransform = transformFactory.getOutputTransform(image)
 
             val conversionStart = SystemClock.elapsedRealtime()
             val bitmap = imageToBitmap(image)
@@ -66,84 +61,83 @@ class YoloImageAnalyzer(
                 val detectionStart = SystemClock.elapsedRealtime()
                 val detections = detector.value.detect(bitmap)
                 val detectionTime = SystemClock.elapsedRealtime() - detectionStart
-
-                val inferenceTime =
-                    SystemClock.elapsedRealtime() - startTime
+                val totalTime = SystemClock.elapsedRealtime() - startTime
 
                 Log.d(
                     "GuardianPerformance",
                     "frame=${image.width}x${image.height}, " +
                         "bitmapConversionMs=$conversionTime, " +
-                        "yoloDetectionMs=$detectionTime, totalMs=$inferenceTime, " +
+                        "yoloDetectionMs=$detectionTime, totalMs=$totalTime, " +
                         "detections=${detections.size}"
                 )
 
-                onDetections(
-                    detections,
-                    inferenceTime,
-                    sourceTransform
-                )
+                onDetections(detections, totalTime, sourceTransform)
             } finally {
                 bitmap.recycle()
             }
-
         } catch (exception: Exception) {
-            onError(
-                exception.message ?: "Unknown camera inference error"
-            )
+            onError(exception.message ?: "Unknown camera inference error")
         } finally {
             image.close()
         }
     }
 
+    /**
+     * Uses bulk row reads instead of four ByteBuffer.get() calls per pixel.
+     * Row padding is handled explicitly; reusable buffers reduce GC pressure.
+     */
     private fun imageToBitmap(image: ImageProxy): Bitmap {
         val plane = image.planes[0]
         val buffer = plane.buffer.duplicate()
-
         val width = image.width
         val height = image.height
         val rowStride = plane.rowStride
         val pixelStride = plane.pixelStride
         val bufferStart = buffer.position()
 
-        require(pixelStride >= 4) {
-            "Expected RGBA camera output"
+        require(pixelStride >= 4) { "Expected RGBA camera output" }
+
+        val rowByteCount = width * pixelStride
+        if (rgbaRowBuffer.size < rowByteCount) {
+            rgbaRowBuffer = ByteArray(rowByteCount)
+        }
+        if (pixelBuffer.size < width * height) {
+            pixelBuffer = IntArray(width * height)
         }
 
-        val pixels = IntArray(width * height)
-
         for (y in 0 until height) {
+            val rowStart = bufferStart + y * rowStride
+            require(rowStart + rowByteCount <= buffer.limit()) {
+                "Invalid camera image buffer"
+            }
+
+            buffer.position(rowStart)
+            buffer.get(rgbaRowBuffer, 0, rowByteCount)
+
+            val outputRow = y * width
             for (x in 0 until width) {
-                val offset = bufferStart +
-                    y * rowStride +
-                    x * pixelStride
+                val offset = x * pixelStride
+                val red = rgbaRowBuffer[offset].toInt() and 0xFF
+                val green = rgbaRowBuffer[offset + 1].toInt() and 0xFF
+                val blue = rgbaRowBuffer[offset + 2].toInt() and 0xFF
+                val alpha = rgbaRowBuffer[offset + 3].toInt() and 0xFF
 
-                require(offset + 3 < buffer.limit()) {
-                    "Invalid camera image buffer"
-                }
-
-                val red = buffer.get(offset).toInt() and 0xFF
-                val green = buffer.get(offset + 1).toInt() and 0xFF
-                val blue = buffer.get(offset + 2).toInt() and 0xFF
-                val alpha = buffer.get(offset + 3).toInt() and 0xFF
-
-                pixels[y * width + x] =
+                pixelBuffer[outputRow + x] =
                     (alpha shl 24) or
-                    (red shl 16) or
-                    (green shl 8) or
-                    blue
+                        (red shl 16) or
+                        (green shl 8) or
+                        blue
             }
         }
 
         val source = Bitmap.createBitmap(
-            pixels,
+            pixelBuffer,
             width,
             height,
             Bitmap.Config.ARGB_8888
         )
 
         val rotation = image.imageInfo.rotationDegrees
-
         if (rotation == 0) return source
 
         val matrix = Matrix().apply {
@@ -151,15 +145,7 @@ class YoloImageAnalyzer(
         }
 
         return try {
-            Bitmap.createBitmap(
-                source,
-                0,
-                0,
-                width,
-                height,
-                matrix,
-                true
-            )
+            Bitmap.createBitmap(source, 0, 0, width, height, matrix, true)
         } finally {
             source.recycle()
         }
@@ -169,10 +155,9 @@ class YoloImageAnalyzer(
     override fun close() {
         if (!closed) {
             closed = true
-
-            if (detector.isInitialized()) {
-                detector.value.close()
-            }
+            if (detector.isInitialized()) detector.value.close()
+            rgbaRowBuffer = ByteArray(0)
+            pixelBuffer = IntArray(0)
         }
     }
 }
