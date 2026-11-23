@@ -315,7 +315,7 @@ private fun GuardianHome(
     // Prevents an old inference result from being published.
     var cameraSessionId by remember { mutableLongStateOf(0L) }
 
-    var yoloAnalyzerReleased by remember {
+    var sceneRequestReady by remember {
     mutableStateOf(false)
 }
     var pendingSceneSnapshot by remember {
@@ -544,7 +544,7 @@ val voiceAssistant = remember(context) {
         pendingSceneSnapshot = null
     }
 
-    yoloAnalyzerReleased = false
+    sceneRequestReady = false
     sceneAnalyzing = false
     cameraRunning = false
 
@@ -564,8 +564,8 @@ val voiceAssistant = remember(context) {
         return
     }
 
-    // Reset the previous release signal before requesting YOLO shutdown.
-    yoloAnalyzerReleased = false
+    // Start scene inference while the live YOLO pipeline continues.
+    sceneRequestReady = true
 
     // Retain the captured image until YOLO has been released.
     pendingSceneSnapshot?.let { previous ->
@@ -573,20 +573,20 @@ val voiceAssistant = remember(context) {
     }
 
     pendingSceneSnapshot = snapshot
-    sceneDescription = "Waiting for camera analysis to stop..."
+    sceneDescription = "Preparing scene analysis..."
     sceneAnalyzing = true
 }
 
 
 LaunchedEffect(
     sceneAnalyzing,
-    yoloAnalyzerReleased,
+    sceneRequestReady,
     sceneInferenceStarted
 ) {
     val snapshot = pendingSceneSnapshot
         ?: return@LaunchedEffect
 
-    if (!sceneAnalyzing || !yoloAnalyzerReleased) {
+    if (!sceneAnalyzing || !sceneRequestReady) {
         return@LaunchedEffect
     }
 
@@ -932,7 +932,7 @@ LaunchedEffect(
                             cameraPreviewView = view
                         },
                         onYoloAnalyzerReleased = {
-                            yoloAnalyzerReleased = true
+                            sceneRequestReady = true
                         }
                     )
                 }
@@ -2425,7 +2425,7 @@ private fun CameraScreen(
             onError = onError,
             onDetections = onDetections,
             onPreviewViewChanged = onPreviewViewChanged,
-            analysisEnabled = !sceneAnalyzing,
+            analysisEnabled = true,
             onYoloAnalyzerReleased = onYoloAnalyzerReleased,
             modifier = Modifier.fillMaxSize()
         )
