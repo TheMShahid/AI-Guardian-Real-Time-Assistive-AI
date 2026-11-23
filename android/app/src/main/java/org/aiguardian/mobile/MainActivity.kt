@@ -283,8 +283,14 @@ private fun GuardianHome(
         }
 
         return try {
-            preview.bitmap
-        } catch (_: Exception) {
+            val previewBitmap = preview.bitmap ?: return null
+            previewBitmap.copy(Bitmap.Config.ARGB_8888, false)
+        } catch (error: Exception) {
+            Log.e(
+                "GuardianSceneFlow",
+                "Could not create independent camera snapshot",
+                error
+            )
             null
         }
     }
