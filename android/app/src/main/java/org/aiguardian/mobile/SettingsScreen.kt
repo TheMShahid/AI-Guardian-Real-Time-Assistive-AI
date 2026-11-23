@@ -626,7 +626,7 @@ private fun DistanceCalibrationSettings(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Step 1: Keep the phone camera at its normal zoom. Ask a helper to stand still beside a reference object at a measured distance. Step 2: Open the camera menu and choose Capture distance calibration sample. Step 3: Return here and enter the object's real height and measured distance.",
+                text = "Step 1: Keep the phone camera at its normal zoom. Ask a helper to stand still beside a reference object at a measured distance. Step 2: Open the camera menu and choose Capture stable distance calibration sample. Keep the object still until the app confirms capture; five detector frames are checked. Step 3: Return here and enter the object's real height and measured distance.",
                 color = Muted,
                 fontSize = 12.sp,
                 lineHeight = 18.sp
@@ -634,14 +634,14 @@ private fun DistanceCalibrationSettings(
 
             if (capture != null) {
                 Text(
-                    text = "LIVE SAMPLE CAPTURED: ${capture.referenceLabel} · ${String.format(java.util.Locale.US, "%.3f", capture.normalizedBoxHeight)} frame ratio",
+                    text = "STABLE LIVE SAMPLE CAPTURED: ${capture.referenceLabel} · ${String.format(java.util.Locale.US, "%.3f", capture.normalizedBoxHeight)} frame ratio",
                     color = Cyan,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             } else {
                 Text(
-                    text = "No live sample captured yet. Open the camera, place one supported object fully in view, then use the camera menu to capture it.",
+                    text = "No live sample captured yet. Open the camera, place one supported object fully in view, then use the camera menu to start capture, then keep it still for about two seconds while five detector frames are checked.",
                     color = Warning,
                     fontSize = 12.sp
                 )
