@@ -591,11 +591,11 @@ private fun DistanceCalibrationSettings(
     val referenceLabel = remember(calibration, capture) {
         mutableStateOf(capture?.referenceLabel ?: calibration?.referenceLabel ?: "person")
     }
-    val knownHeight = remember(calibration) {
-        mutableStateOf(calibration?.referenceHeightMeters?.toString() ?: "1.70")
+    val knownHeight = remember(calibration, capture) {
+        mutableStateOf(calibration?.referenceHeightMeters?.toString() ?: "")
     }
-    val measuredDistance = remember(calibration) {
-        mutableStateOf(calibration?.referenceDistanceMeters?.toString() ?: "2.00")
+    val measuredDistance = remember(calibration, capture) {
+        mutableStateOf(calibration?.referenceDistanceMeters?.toString() ?: "")
     }
     val normalizedBoxHeight = remember(calibration, capture) {
         mutableStateOf(
@@ -607,7 +607,7 @@ private fun DistanceCalibrationSettings(
         )
     }
     val stride = remember(strideLengthMeters) {
-        mutableStateOf(strideLengthMeters?.toString() ?: "0.70")
+        mutableStateOf(strideLengthMeters?.toString() ?: "")
     }
     val error = remember { mutableStateOf<String?>(null) }
 
@@ -647,10 +647,10 @@ private fun DistanceCalibrationSettings(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            CalibrationInput("Known object height in metres", knownHeight.value) {
+            CalibrationInput("Measured object height in metres", knownHeight.value) {
                 knownHeight.value = it
             }
-            CalibrationInput("Measured camera distance in metres", measuredDistance.value) {
+            CalibrationInput("Measured camera-to-object distance in metres", measuredDistance.value) {
                 measuredDistance.value = it
             }
             Text(
@@ -658,9 +658,15 @@ private fun DistanceCalibrationSettings(
                 color = if (capture != null) Cyan else Muted,
                 fontSize = 12.sp
             )
-            CalibrationInput("Your average step length in metres (optional)", stride.value) {
+            CalibrationInput("Your measured average step length in metres (optional)", stride.value) {
                 stride.value = it
             }
+            Text(
+                text = "To measure step length, walk a known distance with a helper in a safe indoor area, then divide that distance by your number of steps. Leave this field empty if you have not measured it; step counts will then stay disabled.",
+                color = Muted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
 
             if (error.value != null) {
                 Text(error.value!!, color = Warning, fontSize = 12.sp)
@@ -672,12 +678,14 @@ private fun DistanceCalibrationSettings(
                     val distance = measuredDistance.value.toFloatOrNull()
                     val boxRatio = normalizedBoxHeight.value.toFloatOrNull()
                     val strideValue = stride.value.toFloatOrNull()
-                    if (capture == null || referenceLabel.value.isBlank() ||
+                    val captureIsFresh = capture != null &&
+                        System.currentTimeMillis() - capture.capturedAtEpochMs in 0L..300_000L
+                    if (!captureIsFresh || referenceLabel.value.isBlank() ||
                         height == null || distance == null || boxRatio == null ||
                         (stride.value.isNotBlank() && strideValue == null) ||
                         (strideValue != null && strideValue !in 0.20f..1.50f)
                     ) {
-                        error.value = "Capture a live sample and enter valid measurements. Step length must be 0.20–1.50 m."
+                        error.value = "Capture a fresh live sample (within 5 minutes), enter measured object height and camera distance. Step length must be 0.20–1.50 m or left blank."
                         return@Button
                     }
                     val created = VisualDistanceEstimator.calibrate(
@@ -712,7 +720,7 @@ private fun DistanceCalibrationSettings(
             }
 
             Text(
-                text = "Distance is an approximate range based on typical object sizes, not a depth sensor or collision warning. Step counts are approximate and depend on your gait. Recalibrate if camera zoom or resolution changes.",
+                text = "Use a fully visible reference object and enter its measured physical height and measured camera distance. Do not use default guesses. Distance is an approximate range, not a depth sensor or collision warning. Step counts remain disabled until you enter a measured stride length. Recalibrate if camera zoom or resolution changes.",
                 color = Warning,
                 fontSize = 11.sp,
                 lineHeight = 17.sp
