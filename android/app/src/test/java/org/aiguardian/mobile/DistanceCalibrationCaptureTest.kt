@@ -32,6 +32,20 @@ class DistanceCalibrationCaptureTest {
     }
 
     @Test
+    fun rejectsNonFiniteAndBlankCaptureData() {
+        assertNull(
+            DistanceCalibrationCapture.fromDetection(
+                "person", Float.NaN, 1000, 1000L
+            )
+        )
+        assertNull(
+            DistanceCalibrationCapture.fromDetection(
+                "   ", 500f, 1000, 1000L
+            )
+        )
+    }
+
+    @Test
     fun rejectsBoxLargerThanFrame() {
         assertNull(
             DistanceCalibrationCapture.fromDetection(
