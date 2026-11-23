@@ -418,7 +418,8 @@ val voiceAssistant = remember(context) {
                 !completed &&
                 (
                     utteranceId.startsWith("guardian-spatial-announcement") ||
-                    utteranceId.startsWith("guardian-urgent-obstacle")
+                    utteranceId.startsWith("guardian-urgent-obstacle") ||
+                    utteranceId.startsWith("guardian-open-sector")
                 )
             ) {
                 Log.w(
@@ -426,6 +427,7 @@ val voiceAssistant = remember(context) {
                     "Obstacle announcement playback failed; allowing retry"
                 )
                 announcedSpatialItems = emptySet()
+                announcedOpenSectors = emptySet()
             }
         }
     )
@@ -875,7 +877,7 @@ LaunchedEffect(
 
     val accepted = voiceAssistant.speak(
         spokenParts.joinToString(" "),
-        flushQueue = true,
+        flushQueue = newItems.isNotEmpty(),
         utteranceId = if (urgentItems.isNotEmpty()) {
             "guardian-urgent-obstacle"
         } else if (newItems.isNotEmpty()) {
