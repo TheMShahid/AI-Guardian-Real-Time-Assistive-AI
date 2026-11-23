@@ -829,6 +829,11 @@ LaunchedEffect(
 
     if (!ttsReady) return@LaunchedEffect
 
+    // Do not queue outdated object descriptions behind speech already playing.
+    // The current object finishes first; a still-visible new object can be
+    // announced on a later camera frame.
+    if (voiceAssistant.isSpeaking()) return@LaunchedEffect
+
     val newItems = stableItems.filter { obstacle ->
         val key = "${obstacle.detection.label}|${obstacle.direction}"
         key !in announcedSpatialItems
@@ -878,9 +883,9 @@ LaunchedEffect(
 
     val accepted = voiceAssistant.speak(
         spokenParts.joinToString(" "),
-        // Finish the current spoken instruction before starting another one.
-        // New detections are queued instead of interrupting an active utterance.
-        flushQueue = false,
+        // Playback-idle check above ensures no active instruction is interrupted.
+        // Flush any obsolete pending item rather than building a stale queue.
+        flushQueue = true,
         utteranceId = if (urgentItems.isNotEmpty()) {
             "guardian-urgent-obstacle"
         } else if (newItems.isNotEmpty()) {
