@@ -54,17 +54,17 @@ object SpeechLocalizer {
     private fun directionPhrase(direction: String, language: String): String {
         return when (language) {
             "Urdu (Pakistan)" -> when (direction) {
-                "front-left" -> "آپ کے سامنے، تھوڑا بائیں طرف"
-                "front-right" -> "آپ کے سامنے، تھوڑا دائیں طرف"
-                "left" -> "آپ کے بائیں ہاتھ پر"
-                "right" -> "آپ کے دائیں ہاتھ پر"
-                else -> "بالکل آپ کے سامنے"
+                "front-left" -> "سامنے بائیں طرف"
+                "front-right" -> "سامنے دائیں طرف"
+                "left" -> "آپ کے بائیں جانب"
+                "right" -> "آپ کے دائیں جانب"
+                else -> "بالکل سامنے"
             }
             "Pashto (Afghanistan)" -> when (direction) {
-                "front-left" -> "ستاسو مخې ته، لږ چپ لوري ته"
-                "front-right" -> "ستاسو مخې ته، لږ ښي لوري ته"
-                "left" -> "ستاسو چپ لاس ته"
-                "right" -> "ستاسو ښي لاس ته"
+                "front-left" -> "مخکې لږ چپ لوري ته"
+                "front-right" -> "مخکې لږ ښي لوري ته"
+                "left" -> "ستاسو چپ لوري ته"
+                "right" -> "ستاسو ښي لوري ته"
                 else -> "ستاسو مخې ته"
             }
             else -> when (direction) {
@@ -78,15 +78,15 @@ object SpeechLocalizer {
     }
 
     fun localize(label: String, direction: String, language: String): String {
-        val normalizedLabel = label.lowercase()
+        val normalizedLabel = label.trim().lowercase()
         return when (language) {
             "Urdu (Pakistan)" -> {
-                val name = urduLabels[normalizedLabel] ?: normalizedLabel
-                "آپ کے ${directionPhrase(direction, language)} ایک $name موجود ہے۔"
+                val name = urduLabels[normalizedLabel] ?: label
+                "${directionPhrase(direction, language)} $name موجود ہے۔"
             }
             "Pashto (Afghanistan)" -> {
                 val name = pashtoLabels[normalizedLabel] ?: label
-                "ستاسو ${directionPhrase(direction, language)} $name شتون لري."
+                "${directionPhrase(direction, language)} $name شتون لري."
             }
             else -> "There is a $label ${directionPhrase(direction, language)}."
         }
@@ -99,21 +99,26 @@ object SpeechLocalizer {
         language: String
     ): String {
         val base = localize(label, direction, language)
+        val name = when (language) {
+            "Urdu (Pakistan)" -> urduLabels[label.trim().lowercase()] ?: label
+            "Pashto (Afghanistan)" -> pashtoLabels[label.trim().lowercase()] ?: label
+            else -> label
+        }
         val proximity = when (apparentProximity) {
             "very-close-looking" -> when (language) {
-                "Urdu (Pakistan)" -> "احتیاط، یہ چیز کیمرے میں بہت قریب دکھائی دے رہی ہے۔"
-                "Pashto (Afghanistan)" -> "احتیاط، دا په کمره کې ډېره نږدې ښکاري."
-                else -> "Caution. It looks very close in the camera view."
+                "Urdu (Pakistan)" -> "احتیاط، کیمرے میں $name کا حصہ بہت بڑا نظر آ رہا ہے۔"
+                "Pashto (Afghanistan)" -> "احتیاط، د $name لویه برخه په کمره کې ښکاري."
+                else -> "Caution. A large part of the $name is visible in the camera view."
             }
             "close-looking" -> when (language) {
-                "Urdu (Pakistan)" -> "یہ چیز قریب دکھائی دے رہی ہے۔"
-                "Pashto (Afghanistan)" -> "دا نږدې ښکاري."
-                else -> "It looks fairly close."
+                "Urdu (Pakistan)" -> "کیمرے میں $name کا حصہ نسبتاً بڑا نظر آ رہا ہے۔"
+                "Pashto (Afghanistan)" -> "د $name لویه برخه په کمره کې ښکاري."
+                else -> "A relatively large part of the $name is visible in the camera view."
             }
             else -> when (language) {
-                "Urdu (Pakistan)" -> "یہ چیز کیمرے میں نسبتاً دور دکھائی دے رہی ہے۔"
-                "Pashto (Afghanistan)" -> "دا په کمره کې لږ لیرې ښکاري."
-                else -> "It looks farther away in the camera view."
+                "Urdu (Pakistan)" -> "کیمرے میں $name کا حصہ نسبتاً چھوٹا نظر آ رہا ہے۔"
+                "Pashto (Afghanistan)" -> "د $name کوچنۍ برخه په کمره کې ښکاري."
+                else -> "A relatively small part of the $name is visible in the camera view."
             }
         }
         return "$proximity $base"
