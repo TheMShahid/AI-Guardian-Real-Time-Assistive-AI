@@ -167,6 +167,15 @@ internal class VoiceAssistant(
         return accepted
     }
 
+    /**
+     * Lets the live guidance pipeline avoid stacking stale announcements.
+     */
+    @Synchronized
+    fun isSpeaking(): Boolean {
+        if (closed) return false
+        return engine?.isSpeaking == true
+    }
+
     @Synchronized
     fun stop() {
         if (!closed) {
