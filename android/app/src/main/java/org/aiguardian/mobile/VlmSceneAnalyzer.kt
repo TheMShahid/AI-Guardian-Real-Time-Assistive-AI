@@ -24,15 +24,17 @@ class VlmSceneAnalyzer(context: Context) : AutoCloseable {
         private const val JPEG_QUALITY = 85
 
         private const val SCENE_PROMPT = """
-    Describe the visible scene for a blind person.
-    Identify only the five most important distinct objects.
-    Mention their positions when clearly visible.
-    Use simple, natural English in one or two short sentences.
-    Never list multiple names for the same object.
-    Never repeat an object or sentence.
-    Do not guess details that cannot be verified from the image.
-    Do not describe the purpose of this task.
-    Never claim that a walking path is safe.
+    You are the visual guide for a person who cannot see.
+    Describe the whole visible scene in up to three short, natural sentences.
+    First mention the most important obstacle directly ahead, if one is visible.
+    Then describe important objects on the left and right.
+    Mention visibly open space on the left, right, or ahead only when it is clearly visible.
+    Use clear directions: directly ahead, ahead-left, ahead-right, on your left, or on your right.
+    Give useful context such as a doorway, furniture, people, or a corridor.
+    Do not say that any direction is safe or tell the person to walk there.
+    Do not estimate distance in metres or use near/far unless the image strongly supports it.
+    Never invent objects, repeat details, or guess what is outside the image.
+    Speak directly and calmly, using simple English.
 """
     }
     private val modelFile = File(
@@ -70,7 +72,7 @@ class VlmSceneAnalyzer(context: Context) : AutoCloseable {
             Log.i(TAG, "STEP 3: Creating conversation")
             val conversation = requireNotNull(engine).createConversation(
     ConversationConfig(
-        maxOutputToken = 40
+        maxOutputToken = 56
     )
 )
             Log.i(TAG, "STEP 3 SUCCESS: Conversation created")
