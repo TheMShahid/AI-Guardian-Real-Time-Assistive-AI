@@ -28,11 +28,12 @@ The estimator uses approximate class-height priors for selected COCO classes and
 
 1. Start the live camera and keep the phone at its normal camera zoom.
 2. Ask a helper to position one supported, fully visible reference object at a measured distance from the camera.
-3. Open the camera overflow menu and select **Capture distance calibration sample**. The app selects the highest-confidence detection among classes with configured size priors and captures its normalized box height and class label. Only geometry and label are retained; no image is saved.
-4. Open Settings → Distance Estimation.
-5. Confirm the captured label. Enter the reference object's actual measured physical height and the measured camera-to-object distance. The captured normalized box ratio is shown automatically.
-6. Optionally enter a measured average stride length. Leave it blank if it has not been measured; step announcements remain disabled.
-7. Save calibration. Samples older than five minutes are rejected and must be captured again.
+3. Open the camera overflow menu and select **Capture stable distance calibration sample**. The app starts a short capture session and evaluates five consecutive detector frames (approximately two seconds at the current analysis cadence). It selects the highest-confidence supported detection in each frame and requires a consistent class, stable normalized bounding-box height (within 10% of the median), stable normalized center position, and no long frame gaps. The accepted normalized box height and center are medians across the sample window. Only geometry, class label and capture time are retained; no image is saved.
+4. Keep the reference object stationary and fully visible until the voice confirmation. If it moves, changes apparent size substantially, disappears for too long, or a different class takes over, the sample window restarts.
+5. Open Settings → Distance Estimation.
+6. Confirm the captured label. Enter the reference object's actual measured physical height and the measured camera-to-object distance. The captured normalized box ratio is shown automatically.
+7. Optionally enter a measured average stride length. Leave it blank if it has not been measured; step announcements remain disabled.
+8. Save calibration. Samples older than five minutes are rejected and must be captured again.
 
 The user must isolate one reference object during capture. If multiple supported objects are visible, the highest-confidence detection may not be the intended reference; verify the displayed class label before saving.
 
@@ -58,8 +59,8 @@ A calibration is specific to the camera, zoom, resolution and image pipeline use
 ## Implementation
 
 - `VisualDistanceEstimator.kt`: calibration, class-size priors, range estimation and optional stride conversion.
-- `DistanceCalibrationCapture.kt`: geometry-only sample captured from a live detector result.
-- `DistanceCalibrationCaptureTest.kt`: sample normalization and invalid geometry tests.
+- `DistanceCalibrationCapture.kt`: geometry-only live samples plus a five-frame stability tracker.
+- `DistanceCalibrationCaptureTest.kt`: sample normalization, median aggregation, class consistency, motion, size stability and stale-frame-gap tests.
 - `DistanceCalibrationStore.kt`: local persistence for calibration and stride settings.
 - `DistanceSpeechFormatter.kt`: localized range and optional step-band formatting.
 - `DistanceSpeechFormatterTest.kt`: localized formatting and refusal to speak unavailable measurements.
