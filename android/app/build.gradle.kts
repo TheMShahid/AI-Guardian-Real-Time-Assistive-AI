@@ -58,5 +58,7 @@ dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.19.1")
 
+    testImplementation("junit:junit:4.13.2")
+
     debugImplementation("androidx.compose.ui:ui-tooling:$composeVersion")
 }
