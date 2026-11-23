@@ -263,7 +263,7 @@ private fun GuardianHome(
 
     var speechRate by remember {
         mutableFloatStateOf(
-            preferences.getFloat("speech_rate", 1.0f)
+            preferences.getFloat("speech_rate", 1.2f)
         )
     }
 
