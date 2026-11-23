@@ -1,14 +1,10 @@
-
 package org.aiguardian.mobile
 
 /**
- * Converts detector labels and spatial directions into
- * the selected spoken language.
- *
- * Detector labels remain in English internally.
+ * Converts detector labels and spatial directions into complete,
+ * concise spoken guidance for the selected language.
  */
 object SpeechLocalizer {
-
     private val urduLabels = mapOf(
         "person" to "شخص",
         "bicycle" to "سائیکل",
@@ -43,7 +39,7 @@ object SpeechLocalizer {
     )
 
     private val pashtoLabels = mapOf(
-        "person" to "کس",
+        "person" to "شخص",
         "bicycle" to "بایسکل",
         "car" to "موټر",
         "motorcycle" to "موټرسایکل",
@@ -75,43 +71,38 @@ object SpeechLocalizer {
         "clock" to "ساعت"
     )
 
-    fun localize(
-        label: String,
-        direction: String,
-        language: String
-    ): String {
-
+    fun localize(label: String, direction: String, language: String): String {
         val normalizedLabel = label.lowercase()
 
         return when (language) {
-
             "Urdu (Pakistan)" -> {
-                val translatedLabel =
-                    urduLabels[normalizedLabel] ?: label
-
+                val translatedLabel = urduLabels[normalizedLabel] ?: label
                 val translatedDirection = when (direction) {
                     "front-left" -> "سامنے بائیں جانب"
                     "front-right" -> "سامنے دائیں جانب"
                     else -> "بالکل سامنے"
                 }
-
-                "$translatedLabel، $translatedDirection"
+                "آپ کے $translatedDirection ایک $translatedLabel موجود ہے۔"
             }
 
             "Pashto (Afghanistan)" -> {
-                val translatedLabel =
-                    pashtoLabels[normalizedLabel] ?: label
-
+                val translatedLabel = pashtoLabels[normalizedLabel] ?: label
                 val translatedDirection = when (direction) {
-                    "front-left" -> "مخکې چپ لوري ته"
-                    "front-right" -> "مخکې ښي لوري ته"
+                    "front-left" -> "چپ لوري ته"
+                    "front-right" -> "ښي لوري ته"
                     else -> "مستقیم مخې ته"
                 }
-
-                "$translatedLabel، $translatedDirection"
+                "ستاسو مخې ته $translatedDirection $translatedLabel شتون لري."
             }
 
-            else -> "$label, $direction"
+            else -> {
+                val translatedDirection = when (direction) {
+                    "front-left" -> "ahead of you, on your left"
+                    "front-right" -> "ahead of you, on your right"
+                    else -> "directly ahead of you"
+                }
+                "There is a $label $translatedDirection."
+            }
         }
     }
 }
