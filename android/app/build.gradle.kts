@@ -49,11 +49,14 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview:$composeVersion")
     implementation("androidx.compose.foundation:foundation:$composeVersion")
     implementation("androidx.compose.material3:material3:1.4.0")
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
 
     implementation("androidx.camera:camera-core:$cameraXVersion")
     implementation("androidx.camera:camera-camera2:$cameraXVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraXVersion")
     implementation("androidx.camera:camera-view:$cameraXVersion")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.19.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling:$composeVersion")
 }
