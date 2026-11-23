@@ -281,6 +281,9 @@ private fun GuardianHome(
     var announcedSpatialItems by remember {
     mutableStateOf<Set<String>>(emptySet())
 }
+    var announcedOpenSectors by remember {
+        mutableStateOf<Set<String>>(emptySet())
+    }
     var cameraRunning by remember { mutableStateOf(false) }
     var cameraError by remember { mutableStateOf<String?>(null) }
     var cameraPreviewView by remember {
@@ -789,14 +792,8 @@ LaunchedEffect(
     speechLanguage
 ) {
     val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
-    val currentSpatialItems = prioritizedObstacles
-        .map { obstacle ->
-            obstacle.detection.label to obstacle.direction
-        }
-        .distinct()
-
-    val currentKeys = currentSpatialItems.map { (label, direction) ->
-        "$label|$direction"
+    val currentKeys = prioritizedObstacles.map { obstacle ->
+        "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
     }.toSet()
 
     val stableKeys = obstacleStabilityTracker.update(
@@ -805,73 +802,97 @@ LaunchedEffect(
         nowMs = SystemClock.elapsedRealtime()
     )
 
-    val stableSpatialItems = currentSpatialItems.filter { (label, direction) ->
-        "$label|$direction" in stableKeys
+    val stableItems = prioritizedObstacles.filter { obstacle ->
+        val key = "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+        key in stableKeys || obstacle.apparentProximity == "very-close-looking"
     }
-
-    Log.d(
-        "GuardianVoice",
-        "Camera speech evaluation: detections=" + detections.size +
-            ", prioritized=" + currentSpatialItems.size +
-            ", temporallyStable=" + stableSpatialItems.size +
-            ", enabled=" + voiceAnnouncements +
-            ", ttsReady=" + ttsReady
-    )
 
     if (!voiceAnnouncements) {
         announcedSpatialItems = emptySet()
-        return@LaunchedEffect
-    }
-
-    if (currentKeys.isEmpty()) {
-        announcedSpatialItems = emptySet()
+        announcedOpenSectors = emptySet()
         return@LaunchedEffect
     }
 
     announcedSpatialItems = announcedSpatialItems.intersect(currentKeys)
 
-    if (!ttsReady || stableSpatialItems.isEmpty()) {
-        return@LaunchedEffect
+    val openSectors = PathAwareObstacleAnalyzer
+        .sectorsWithoutRecognizedObstacles(detections)
+        .toSet()
+    announcedOpenSectors = announcedOpenSectors.intersect(openSectors)
+
+    if (!ttsReady) return@LaunchedEffect
+
+    val newItems = stableItems.filter { obstacle ->
+        val key = "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+        key !in announcedSpatialItems
     }
 
-    val newItems = stableSpatialItems.filter { (label, direction) ->
-        "$label|$direction" !in announcedSpatialItems
-    }
-    if (newItems.isEmpty()) {
-        return@LaunchedEffect
+    val urgentItems = newItems.filter {
+        it.apparentProximity == "very-close-looking"
     }
 
     val currentTime = System.currentTimeMillis()
-    if (currentTime - lastAnnouncementTime < 3000L) {
+    val canSpeakRoutineUpdate = currentTime - lastAnnouncementTime >= 3000L
+
+    val newOpenSector = if (newItems.isEmpty() && canSpeakRoutineUpdate) {
+        listOf("ahead", "left", "right").firstOrNull { sector ->
+            sector in openSectors && sector !in announcedOpenSectors
+        }
+    } else {
+        null
+    }
+
+    if (newItems.isEmpty() && newOpenSector == null) {
         return@LaunchedEffect
     }
 
-    val spokenMessage = newItems
-        .sortedBy { it.first }
-        .joinToString(" ") { (label, direction) ->
-            SpeechLocalizer.localize(
-                label = label,
-                direction = direction,
-                language = speechLanguage
-            )
-        }
+    // A visually very large obstacle bypasses the routine cooldown.
+    // TTS QUEUE_FLUSH lets this warning interrupt lower-priority narration.
+    if (urgentItems.isEmpty() && !canSpeakRoutineUpdate) {
+        return@LaunchedEffect
+    }
+
+    val spokenParts = mutableListOf<String>()
+    newItems.take(2).forEach { obstacle ->
+        spokenParts += SpeechLocalizer.localizeObstacle(
+            label = obstacle.detection.label,
+            direction = obstacle.direction,
+            apparentProximity = obstacle.apparentProximity,
+            language = speechLanguage
+        )
+    }
+
+    if (newOpenSector != null) {
+        spokenParts += SpeechLocalizer.localizeUnobservedSector(
+            sector = newOpenSector,
+            language = speechLanguage
+        )
+    }
 
     val accepted = voiceAssistant.speak(
-        spokenMessage,
+        spokenParts.joinToString(" "),
         flushQueue = true,
-        utteranceId = "guardian-spatial-announcement"
+        utteranceId = if (urgentItems.isNotEmpty()) {
+            "guardian-urgent-obstacle"
+        } else if (newItems.isNotEmpty()) {
+            "guardian-spatial-announcement"
+        } else {
+            "guardian-open-sector"
+        }
     )
 
     if (accepted) {
-        announcedSpatialItems =
-            announcedSpatialItems + newItems.map { (label, direction) ->
-                "$label|$direction"
-            }
+        announcedSpatialItems = announcedSpatialItems + newItems.map { obstacle ->
+            "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+        }
+        if (newOpenSector != null) {
+            announcedOpenSectors = announcedOpenSectors + newOpenSector
+        }
         lastAnnouncementTime = currentTime
     } else {
         Log.w(
             "GuardianVoice",
-            "Spatial announcement was rejected; it will be retried on a later camera frame"
+            "Live guidance speech was rejected; it will be retried on a later camera frame"
         )
     }
 }
