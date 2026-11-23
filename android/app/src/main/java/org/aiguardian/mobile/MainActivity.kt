@@ -794,10 +794,14 @@ if (voiceAnnouncements && ttsReady) {
     // Announce only obstacles confirmed across multiple camera-analysis frames.
 LaunchedEffect(
     detectionFrameSequence,
+    cameraRunning,
     voiceAnnouncements,
     ttsReady,
     speechLanguage
+
 ) {
+    if (!cameraRunning) return@LaunchedEffect
+
     val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
     val currentKeys = prioritizedObstacles.map { obstacle ->
         "${obstacle.detection.label}|${obstacle.direction}"
