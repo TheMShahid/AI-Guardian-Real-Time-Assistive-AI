@@ -128,13 +128,13 @@ object SpeechLocalizer {
                 "Urdu (Pakistan)" ->
                     "احتیاط! $directionText $spokenName قریب ہے۔ براہِ کرم رکیں اور آگے بڑھنے سے پہلے راستہ دیکھ لیں۔"
                 "Pashto (Afghanistan)" ->
-                    "احتیاط، $name ستاسو $directionText ډېر نږدې ښکاري. کره واټن نه دی معلوم. مهرباني وکړئ ودرېږئ او لاره وګورئ."
+                    "احتیاط، $spokenName ستاسو $directionText ډېر نږدې ښکاري. کره واټن نه دی معلوم. مهرباني وکړئ ودرېږئ او لاره وګورئ."
                 else ->
-                    "Caution. The $name appears very close, $directionText. Its exact distance is unknown. Please stop and check the way ahead."
+                    "Caution. The $spokenName appears very close, $directionText. Its exact distance is unknown. Please stop and check the way ahead."
             }
             "close-looking" -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "$directionText $name ہے۔ یہ قریب دکھائی دے رہی ہے؛ آگے بڑھنے سے پہلے احتیاط کریں۔"
+                    "$directionText $spokenName ہے۔ یہ قریب دکھائی دے رہی ہے؛ آگے بڑھنے سے پہلے احتیاط کریں۔"
                 "Pashto (Afghanistan)" ->
                     "$spokenName ستاسو $directionText ښکاري. داسې برېښي چې نږدې دی، خو کره واټن نه دی معلوم. مخکې له تګ څخه لاره وګورئ."
                 else ->
