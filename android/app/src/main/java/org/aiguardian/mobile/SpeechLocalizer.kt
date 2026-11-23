@@ -55,25 +55,25 @@ object SpeechLocalizer {
     private fun directionPhrase(direction: String, language: String): String {
         return when (language) {
             "Urdu (Pakistan)" -> when (direction) {
-                "front-left" -> "آپ کے سامنے بائیں طرف"
-                "front-right" -> "آپ کے سامنے دائیں طرف"
+                "front-left" -> "آپ کے آگے بائیں جانب"
+                "front-right" -> "آپ کے آگے دائیں جانب"
                 "left" -> "آپ کے بائیں جانب"
                 "right" -> "آپ کے دائیں جانب"
-                else -> "آپ کے بالکل سامنے"
+                else -> "آپ کے عین سامنے"
             }
             "Pashto (Afghanistan)" -> when (direction) {
-                "front-left" -> "ستاسو مخې ته لږ چپ لوري ته"
-                "front-right" -> "ستاسو مخې ته لږ ښي لوري ته"
+                "front-left" -> "ستاسو مخې ته چپ لوري ته"
+                "front-right" -> "ستاسو مخې ته ښي لوري ته"
                 "left" -> "ستاسو چپ لوري ته"
                 "right" -> "ستاسو ښي لوري ته"
                 else -> "ستاسو مخې ته"
             }
             else -> when (direction) {
-                "front-left" -> "ahead of you, slightly to your left"
-                "front-right" -> "ahead of you, slightly to your right"
+                "front-left" -> "ahead and to your left"
+                "front-right" -> "ahead and to your right"
                 "left" -> "on your left"
                 "right" -> "on your right"
-                else -> "directly ahead of you"
+                else -> "straight ahead"
             }
         }
     }
@@ -110,7 +110,7 @@ object SpeechLocalizer {
         return when (apparentProximity) {
             "very-close-looking" -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "احتیاط، $directionText $name بہت قریب دکھائی دے رہی ہے۔ درست فاصلہ معلوم نہیں۔ براہِ کرم رک جائیں اور راستہ چیک کریں۔"
+                    "احتیاط! $directionText $name قریب ہے۔ براہِ کرم رکیں اور آگے بڑھنے سے پہلے راستہ دیکھ لیں۔"
                 "Pashto (Afghanistan)" ->
                     "احتیاط، $name ستاسو $directionText ډېر نږدې ښکاري. کره واټن نه دی معلوم. مهرباني وکړئ ودرېږئ او لاره وګورئ."
                 else ->
@@ -118,7 +118,7 @@ object SpeechLocalizer {
             }
             "close-looking" -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "$directionText $name موجود ہے۔ یہ بظاہر قریب دکھائی دے رہی ہے، لیکن درست فاصلہ معلوم نہیں۔ آگے بڑھنے سے پہلے راستہ چیک کریں۔"
+                    "$directionText $name ہے۔ یہ قریب دکھائی دے رہی ہے؛ آگے بڑھنے سے پہلے احتیاط کریں۔"
                 "Pashto (Afghanistan)" ->
                     "$name ستاسو $directionText ښکاري. داسې برېښي چې نږدې دی، خو کره واټن نه دی معلوم. مخکې له تګ څخه لاره وګورئ."
                 else ->
@@ -126,7 +126,7 @@ object SpeechLocalizer {
             }
             else -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "$directionText $name نظر آ رہی ہے۔ یہ بظاہر کچھ فاصلے پر ہے؛ کیمرہ درست فاصلہ نہیں بتا سکتا۔"
+                    "$directionText $name نظر آ رہی ہے۔ یہ نسبتاً دور دکھائی دیتی ہے۔ درست فاصلہ معلوم نہیں۔"
                 "Pashto (Afghanistan)" ->
                     "$name ستاسو $directionText ښکاري. داسې برېښي چې لږ لرې دی؛ کمره کره واټن نه شي معلومولی."
                 else ->
@@ -138,19 +138,19 @@ object SpeechLocalizer {
     fun localizeUnobservedSector(sector: String, language: String): String {
         return when (language) {
             "Urdu (Pakistan)" -> when (sector) {
-                "left" -> "کیمرے میں بائیں طرف کوئی پہچانی ہوئی رکاوٹ نظر نہیں آئی، لیکن اس کا مطلب یہ نہیں کہ راستہ خالی یا محفوظ ہے۔"
-                "right" -> "کیمرے میں دائیں طرف کوئی پہچانی ہوئی رکاوٹ نظر نہیں آئی، لیکن اس کا مطلب یہ نہیں کہ راستہ خالی یا محفوظ ہے۔"
-                else -> "کیمرے میں سامنے کوئی پہچانی ہوئی رکاوٹ نظر نہیں آئی، لیکن راستہ خالی یا محفوظ ہونے کی تصدیق نہیں ہوئی۔"
+                "left" -> "بائیں جانب کوئی واضح رکاوٹ نظر نہیں آ رہی۔ پھر بھی آگے بڑھنے سے پہلے راستہ چیک کریں۔"
+                "right" -> "دائیں جانب کوئی واضح رکاوٹ نظر نہیں آ رہی۔ پھر بھی آگے بڑھنے سے پہلے راستہ چیک کریں۔"
+                else -> "سامنے کوئی واضح رکاوٹ نظر نہیں آ رہی۔ پھر بھی آگے بڑھنے سے پہلے راستہ چیک کریں۔"
             }
             "Pashto (Afghanistan)" -> when (sector) {
-                "left" -> "کمرې په چپ لوري کې پېژندل شوی خنډ ونه لید، خو دا د لارې د خالي یا خوندي کېدو معنا نه لري."
-                "right" -> "کمرې په ښي لوري کې پېژندل شوی خنډ ونه لید، خو دا د لارې د خالي یا خوندي کېدو معنا نه لري."
-                else -> "کمرې مخې ته پېژندل شوی خنډ ونه لید، خو د لارې خوندي‌والی نه شي تاییدولی."
+                "left" -> "چپ لوري ته څرګند خنډ نه ښکاري. بیا هم مخکې له تګ څخه لاره وګورئ."
+                "right" -> "ښي لوري ته څرګند خنډ نه ښکاري. بیا هم مخکې له تګ څخه لاره وګورئ."
+                else -> "مخې ته څرګند خنډ نه ښکاري. بیا هم مخکې له تګ څخه لاره وګورئ."
             }
             else -> when (sector) {
-                "left" -> "No recognized obstacle was detected on the left in the camera view. This does not confirm that the path is clear or safe."
-                "right" -> "No recognized obstacle was detected on the right in the camera view. This does not confirm that the path is clear or safe."
-                else -> "No recognized obstacle was detected ahead in the camera view. This does not confirm that the path is clear or safe."
+                "left" -> "I don't see a clear obstacle to your left. Please still check the way before moving."
+                "right" -> "I don't see a clear obstacle to your right. Please still check the way before moving."
+                else -> "I don't see a clear obstacle ahead. Please still check the way before moving."
             }
         }
     }
