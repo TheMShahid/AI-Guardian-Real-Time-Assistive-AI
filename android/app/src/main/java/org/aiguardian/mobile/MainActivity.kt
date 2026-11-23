@@ -21,6 +21,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Paint
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import android.view.View
@@ -307,6 +308,8 @@ var sceneInferenceStarted by remember {
     mutableStateOf(false)
 }
     var detections by remember { mutableStateOf<List<Detection>>(emptyList()) }
+    var detectionFrameSequence by remember { mutableLongStateOf(0L) }
+    val obstacleStabilityTracker = remember { ObstacleStabilityTracker() }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
 }
@@ -507,6 +510,9 @@ val voiceAssistant = remember(context) {
 
     fun stopCamera() {
     voiceAssistant.stop()
+    obstacleStabilityTracker.reset()
+    announcedSpatialItems = emptySet()
+    detectionFrameSequence++
 
     cameraSessionId++
 
@@ -759,10 +765,9 @@ if (voiceAnnouncements && ttsReady) {
         }
 }
 
-    // Announce newly detected objects with their spatial positions.
-    // Announce only prioritized obstacles in the forward walking corridor.
+    // Announce only obstacles confirmed across multiple camera-analysis frames.
 LaunchedEffect(
-    detections,
+    detectionFrameSequence,
     voiceAnnouncements,
     ttsReady,
     speechLanguage
@@ -778,10 +783,21 @@ LaunchedEffect(
         "$label|$direction"
     }.toSet()
 
+    val stableKeys = obstacleStabilityTracker.update(
+        currentKeys = currentKeys,
+        frameId = detectionFrameSequence,
+        nowMs = SystemClock.elapsedRealtime()
+    )
+
+    val stableSpatialItems = currentSpatialItems.filter { (label, direction) ->
+        "$label|$direction" in stableKeys
+    }
+
     Log.d(
         "GuardianVoice",
         "Camera speech evaluation: detections=" + detections.size +
             ", prioritized=" + currentSpatialItems.size +
+            ", temporallyStable=" + stableSpatialItems.size +
             ", enabled=" + voiceAnnouncements +
             ", ttsReady=" + ttsReady
     )
@@ -798,11 +814,11 @@ LaunchedEffect(
 
     announcedSpatialItems = announcedSpatialItems.intersect(currentKeys)
 
-    if (!ttsReady) {
+    if (!ttsReady || stableSpatialItems.isEmpty()) {
         return@LaunchedEffect
     }
 
-    val newItems = currentSpatialItems.filter { (label, direction) ->
+    val newItems = stableSpatialItems.filter { (label, direction) ->
         "$label|$direction" !in announcedSpatialItems
     }
     if (newItems.isEmpty()) {
@@ -867,6 +883,7 @@ LaunchedEffect(
                         onError = { cameraError = it },
                         onDetections = { found, duration, _ ->
     detections = found
+    detectionFrameSequence++
     inferenceMs = duration
     analysisReady = true
 
