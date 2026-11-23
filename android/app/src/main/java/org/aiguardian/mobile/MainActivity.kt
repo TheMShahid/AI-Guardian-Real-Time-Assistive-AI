@@ -1021,7 +1021,7 @@ LaunchedEffect(
                         },
                         onCaptureCalibrationSample = {
                             val supported = detections
-                                .filter { it.label in setOf("person", "chair", "backpack", "car", "bicycle", "dog", "cat") }
+                                .filter { VisualDistanceEstimator.supportsObject(it.label) }
                                 .maxByOrNull { it.confidence }
                             distanceCalibrationCapture = supported?.let { detection ->
                                 DistanceCalibrationCapture.fromDetection(
@@ -2639,7 +2639,7 @@ private fun CameraScreen(
                         DropdownMenuItem(
                             text = { Text("Capture distance calibration sample") },
                             enabled = detections.any {
-                                it.label in setOf("person", "chair", "backpack", "car", "bicycle", "dog", "cat")
+                                VisualDistanceEstimator.supportsObject(it.label)
                             },
                             onClick = {
                                 menuExpanded = false
