@@ -800,7 +800,7 @@ LaunchedEffect(
 ) {
     val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
     val currentKeys = prioritizedObstacles.map { obstacle ->
-        "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+        "${obstacle.detection.label}|${obstacle.direction}"
     }.toSet()
 
     val stableKeys = obstacleStabilityTracker.update(
@@ -810,7 +810,7 @@ LaunchedEffect(
     )
 
     val stableItems = prioritizedObstacles.filter { obstacle ->
-        val key = "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+        val key = "${obstacle.detection.label}|${obstacle.direction}"
         key in stableKeys || obstacle.apparentProximity == "very-close-looking"
     }
 
@@ -830,7 +830,7 @@ LaunchedEffect(
     if (!ttsReady) return@LaunchedEffect
 
     val newItems = stableItems.filter { obstacle ->
-        val key = "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+        val key = "${obstacle.detection.label}|${obstacle.direction}"
         key !in announcedSpatialItems
     }
 
@@ -892,7 +892,7 @@ LaunchedEffect(
 
     if (accepted) {
         announcedSpatialItems = announcedSpatialItems + newItems.map { obstacle ->
-            "${obstacle.detection.label}|${obstacle.direction}|${obstacle.apparentProximity}"
+            "${obstacle.detection.label}|${obstacle.direction}"
         }
         if (newOpenSector != null) {
             announcedOpenSectors = announcedOpenSectors + newOpenSector
