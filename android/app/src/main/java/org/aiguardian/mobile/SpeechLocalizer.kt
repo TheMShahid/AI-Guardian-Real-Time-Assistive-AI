@@ -1,108 +1,94 @@
 package org.aiguardian.mobile
 
 /**
- * Converts detector labels and spatial directions into complete,
- * concise spoken guidance for the selected language.
+ * Natural spoken guidance from detected object labels and visual cues.
+ * Apparent proximity is not calibrated physical distance.
  */
 object SpeechLocalizer {
     private val urduLabels = mapOf(
-        "person" to "شخص",
-        "bicycle" to "سائیکل",
-        "car" to "گاڑی",
-        "motorcycle" to "موٹر سائیکل",
-        "airplane" to "ہوائی جہاز",
-        "bus" to "بس",
-        "train" to "ٹرین",
-        "truck" to "ٹرک",
-        "boat" to "کشتی",
-        "traffic light" to "ٹریفک سگنل",
-        "bird" to "پرندہ",
-        "cat" to "بلی",
-        "dog" to "کتا",
-        "horse" to "گھوڑا",
-        "backpack" to "بیگ",
-        "umbrella" to "چھتری",
-        "bottle" to "بوتل",
-        "cup" to "کپ",
-        "banana" to "کیلا",
-        "apple" to "سیب",
-        "chair" to "کرسی",
-        "couch" to "صوفہ",
-        "bed" to "بستر",
-        "dining table" to "کھانے کی میز",
-        "toilet" to "ٹوائلٹ",
-        "tv" to "ٹیلی ویژن",
-        "laptop" to "لیپ ٹاپ",
-        "cell phone" to "موبائل فون",
-        "book" to "کتاب",
-        "clock" to "گھڑی"
+        "person" to "insaan", "bicycle" to "cycle", "car" to "gaari",
+        "motorcycle" to "motorcycle", "airplane" to "hawai jahaz",
+        "bus" to "bus", "train" to "train", "truck" to "truck",
+        "boat" to "kashti", "traffic light" to "traffic signal",
+        "fire hydrant" to "fire hydrant", "stop sign" to "stop sign",
+        "parking meter" to "parking meter", "bench" to "bench",
+        "bird" to "parinda", "cat" to "billi", "dog" to "kutta",
+        "horse" to "ghora", "sheep" to "bher", "cow" to "gaaye",
+        "elephant" to "haathi", "bear" to "reech", "zebra" to "zebra",
+        "giraffe" to "giraffe", "backpack" to "bag", "umbrella" to "chhatri",
+        "handbag" to "handbag", "tie" to "tie", "suitcase" to "suitcase",
+        "frisbee" to "frisbee", "skis" to "skis", "snowboard" to "snowboard",
+        "sports ball" to "ball", "kite" to "patang", "baseball bat" to "bat",
+        "baseball glove" to "glove", "skateboard" to "skateboard",
+        "surfboard" to "surfboard", "tennis racket" to "tennis racket",
+        "bottle" to "bottle", "wine glass" to "glass", "cup" to "cup",
+        "fork" to "kaanta", "knife" to "chhuri", "spoon" to "chamach",
+        "bowl" to "pyali", "banana" to "kela", "apple" to "seb",
+        "sandwich" to "sandwich", "orange" to "malta", "broccoli" to "broccoli",
+        "carrot" to "gajar", "hot dog" to "hot dog", "pizza" to "pizza",
+        "donut" to "donut", "cake" to "cake", "chair" to "kursi",
+        "couch" to "sofa", "potted plant" to "gamlay wala poda",
+        "bed" to "bistar", "dining table" to "mez", "toilet" to "toilet",
+        "tv" to "television", "laptop" to "laptop", "mouse" to "computer mouse",
+        "remote" to "remote", "keyboard" to "keyboard", "cell phone" to "mobile phone",
+        "microwave" to "microwave", "oven" to "oven", "toaster" to "toaster",
+        "sink" to "sink", "refrigerator" to "fridge", "book" to "kitaab",
+        "clock" to "ghari", "vase" to "guldaan", "scissors" to "qainchi",
+        "teddy bear" to "teddy bear", "hair drier" to "hair dryer",
+        "toothbrush" to "toothbrush"
     )
 
     private val pashtoLabels = mapOf(
-        "person" to "شخص",
-        "bicycle" to "بایسکل",
-        "car" to "موټر",
-        "motorcycle" to "موټرسایکل",
-        "airplane" to "الوتکه",
-        "bus" to "بس",
-        "train" to "اورګاډی",
-        "truck" to "لارۍ",
-        "boat" to "کښتۍ",
-        "traffic light" to "ترافیکي څراغ",
-        "bird" to "مرغه",
-        "cat" to "پیشو",
-        "dog" to "سپی",
-        "horse" to "آس",
-        "backpack" to "بکس",
-        "umbrella" to "چترۍ",
-        "bottle" to "بوتل",
-        "cup" to "پیاله",
-        "banana" to "کېله",
-        "apple" to "مڼه",
-        "chair" to "څوکۍ",
-        "couch" to "سوفه",
-        "bed" to "کټ",
-        "dining table" to "د ډوډۍ مېز",
-        "toilet" to "تشناب",
-        "tv" to "تلویزیون",
-        "laptop" to "لېپټاپ",
-        "cell phone" to "ګرځنده ټیلیفون",
-        "book" to "کتاب",
-        "clock" to "ساعت"
+        "person" to "شخص", "bicycle" to "بایسکل", "car" to "موټر",
+        "motorcycle" to "موټرسایکل", "airplane" to "الوتکه", "bus" to "بس",
+        "train" to "اورګاډی", "truck" to "لارۍ", "boat" to "کښتۍ",
+        "bird" to "مرغه", "cat" to "پیشو", "dog" to "سپی",
+        "horse" to "آس", "backpack" to "بکس", "umbrella" to "چترۍ",
+        "bottle" to "بوتل", "cup" to "پیاله", "banana" to "کېله",
+        "apple" to "مڼه", "chair" to "څوکۍ", "couch" to "سوفه",
+        "bed" to "کټ", "dining table" to "د ډوډۍ مېز",
+        "toilet" to "تشناب", "tv" to "تلویزیون", "laptop" to "لېپټاپ",
+        "cell phone" to "ګرځنده ټیلیفون", "book" to "کتاب", "clock" to "ساعت"
     )
+
+    private fun directionPhrase(direction: String, language: String): String {
+        return when (language) {
+            "Urdu (Pakistan)" -> when (direction) {
+                "front-left" -> "aapke saamne, thora bayen taraf"
+                "front-right" -> "aapke saamne, thora dayen taraf"
+                "left" -> "aapke bayen haath par"
+                "right" -> "aapke dayen haath par"
+                else -> "bilkul aapke saamne"
+            }
+            "Pashto (Afghanistan)" -> when (direction) {
+                "front-left" -> "ستاسو مخې ته، لږ چپ لوري ته"
+                "front-right" -> "ستاسو مخې ته، لږ ښي لوري ته"
+                "left" -> "ستاسو چپ لاس ته"
+                "right" -> "ستاسو ښي لاس ته"
+                else -> "ستاسو مخې ته"
+            }
+            else -> when (direction) {
+                "front-left" -> "ahead of you, slightly to your left"
+                "front-right" -> "ahead of you, slightly to your right"
+                "left" -> "on your left"
+                "right" -> "on your right"
+                else -> "directly ahead of you"
+            }
+        }
+    }
 
     fun localize(label: String, direction: String, language: String): String {
         val normalizedLabel = label.lowercase()
-
         return when (language) {
             "Urdu (Pakistan)" -> {
-                val translatedLabel = urduLabels[normalizedLabel] ?: label
-                val translatedDirection = when (direction) {
-                    "front-left" -> "سامنے بائیں جانب"
-                    "front-right" -> "سامنے دائیں جانب"
-                    else -> "بالکل سامنے"
-                }
-                "آپ کے $translatedDirection ایک $translatedLabel موجود ہے۔"
+                val name = urduLabels[normalizedLabel] ?: normalizedLabel
+                "Aapke ${directionPhrase(direction, language)} ek $name hai."
             }
-
             "Pashto (Afghanistan)" -> {
-                val translatedLabel = pashtoLabels[normalizedLabel] ?: label
-                val translatedDirection = when (direction) {
-                    "front-left" -> "چپ لوري ته"
-                    "front-right" -> "ښي لوري ته"
-                    else -> "مستقیم مخې ته"
-                }
-                "ستاسو مخې ته $translatedDirection $translatedLabel شتون لري."
+                val name = pashtoLabels[normalizedLabel] ?: label
+                "ستاسو ${directionPhrase(direction, language)} $name شته."
             }
-
-            else -> {
-                val translatedDirection = when (direction) {
-                    "front-left" -> "ahead of you, on your left"
-                    "front-right" -> "ahead of you, on your right"
-                    else -> "directly ahead of you"
-                }
-                "There is a $label $translatedDirection."
-            }
+            else -> "There is a $label ${directionPhrase(direction, language)}."
         }
     }
 
@@ -113,44 +99,43 @@ object SpeechLocalizer {
         language: String
     ): String {
         val base = localize(label, direction, language)
-        val urgency = when (apparentProximity) {
+        val proximity = when (apparentProximity) {
             "very-close-looking" -> when (language) {
-                "Urdu (Pakistan)" -> "خطرہ، یہ چیز تصویر میں بہت بڑی اور بظاہر بہت قریب ہے۔"
-                "Pashto (Afghanistan)" -> "خبرتیا، دا شی په انځور کې ډېر لوی او ظاهراً ډېر نږدې ښکاري."
-                else -> "Warning. It looks very close."
+                "Urdu (Pakistan)" -> "Ehtiyat, yeh camera mein bohat qareeb nazar aa rahi hai."
+                "Pashto (Afghanistan)" -> "احتیاط، دا په کمره کې ډېره نږدې ښکاري."
+                else -> "Caution. It looks very close in the camera view."
             }
             "close-looking" -> when (language) {
-                "Urdu (Pakistan)" -> "یہ چیز بظاہر قریب ہے۔"
-                "Pashto (Afghanistan)" -> "دا شی ظاهراً نږدې ښکاري."
-                else -> "It appears close."
+                "Urdu (Pakistan)" -> "Yeh qareeb lag rahi hai."
+                "Pashto (Afghanistan)" -> "دا نږدې ښکاري."
+                else -> "It looks fairly close."
             }
             else -> when (language) {
-                "Urdu (Pakistan)" -> "یہ چیز تصویر میں نسبتاً چھوٹی نظر آ رہی ہے۔"
-                "Pashto (Afghanistan)" -> "دا شی په انځور کې نسبتاً کوچنی ښکاري."
-                else -> "It appears smaller in the camera view."
+                "Urdu (Pakistan)" -> "Yeh camera mein kuch door nazar aa rahi hai."
+                "Pashto (Afghanistan)" -> "دا په کمره کې لږ لیرې ښکاري."
+                else -> "It looks farther away in the camera view."
             }
         }
-        return "$urgency $base"
+        return "$proximity $base"
     }
 
     fun localizeUnobservedSector(sector: String, language: String): String {
         return when (language) {
             "Urdu (Pakistan)" -> when (sector) {
-                "left" -> "کیمرے میں بائیں طرف کوئی پہچانی گئی رکاوٹ نظر نہیں آئی۔"
-                "right" -> "کیمرے میں دائیں طرف کوئی پہچانی گئی رکاوٹ نظر نہیں آئی۔"
-                else -> "کیمرے میں سامنے کوئی پہچانی گئی رکاوٹ نظر نہیں آئی۔"
+                "left" -> "Camera mein bayen taraf koi pehchani hui rukawat nazar nahi aa rahi."
+                "right" -> "Camera mein dayen taraf koi pehchani hui rukawat nazar nahi aa rahi."
+                else -> "Camera mein aage koi pehchani hui rukawat nazar nahi aa rahi."
             }
             "Pashto (Afghanistan)" -> when (sector) {
-                "left" -> "د کمرې په چپ لوري کې پېژندل شوی خنډ ونه موندل شو."
-                "right" -> "د کمرې په ښي لوري کې پېژندل شوی خنډ ونه موندل شو."
-                else -> "د کمرې مخې ته پېژندل شوی خنډ ونه موندل شو."
+                "left" -> "د کمرې په چپ لوري کې پېژندل شوی خنډ نه ښکاري."
+                "right" -> "د کمرې په ښي لوري کې پېژندل شوی خنډ نه ښکاري."
+                else -> "د کمرې مخې ته پېژندل شوی خنډ نه ښکاري."
             }
             else -> when (sector) {
-                "left" -> "No recognized obstacle detected on your left."
-                "right" -> "No recognized obstacle detected on your right."
-                else -> "No recognized obstacle detected directly ahead."
+                "left" -> "No recognized obstacle is visible on your left in the camera view."
+                "right" -> "No recognized obstacle is visible on your right in the camera view."
+                else -> "No recognized obstacle is visible ahead in the camera view."
             }
         }
     }
-
 }
