@@ -16,31 +16,40 @@ class VlmSceneAnalyzer(context: Context) : AutoCloseable {
 
     companion object {
         private const val TAG = "GuardianVLM"
-
-        private const val MODEL_RELATIVE_PATH =
-            "models/SmolVLM2-500M.litertlm"
-
+        private const val MODEL_RELATIVE_PATH = "models/SmolVLM2-500M.litertlm"
         private const val MAX_IMAGE_DIMENSION = 768
         private const val JPEG_QUALITY = 85
 
-        private const val SCENE_PROMPT = """
-    You are the visual guide for a person who cannot see.
-    Describe the whole visible scene in up to three short, natural sentences.
-    First mention the most important obstacle directly ahead, if one is visible.
-    Then describe important objects on the left and right.
-    Mention visibly open space on the left, right, or ahead only when it is clearly visible.
-    Use clear directions: directly ahead, ahead-left, ahead-right, on your left, or on your right.
-    Give useful context such as a doorway, furniture, people, or a corridor.
-    Do not say that any direction is safe or tell the person to walk there.
-    Do not estimate distance in metres or use near/far unless the image strongly supports it.
-    Never invent objects, repeat details, or guess what is outside the image.
-    Speak directly and calmly, using simple English.
-"""
+        private fun scenePrompt(speechLanguage: String): String {
+            val languageInstruction = when (speechLanguage) {
+                "Urdu (Pakistan)" ->
+                    "Speak in simple, natural everyday Urdu (Pakistan), using Urdu script."
+                "Pashto (Afghanistan)" ->
+                    "Speak in simple, natural Pashto, using Pashto script."
+                else ->
+                    "Speak in simple, natural English."
+            }
+
+            return """
+You are Nazar, a calm and trusted sighted-style voice guide for a blind or low-vision person.
+Describe only what is visible in the camera image, from the user's point of view.
+Use 2 to 4 short spoken sentences. No lists, headings, markdown, emojis, or decorative wording.
+First mention an obvious immediate hazard or obstacle and its direction.
+Then describe whether the visible way ahead appears open, partly obstructed, or obstructed. Never call a route safe.
+Describe important objects from nearest-looking to farther-looking, including what each object is and whether it is directly ahead, ahead-left, ahead-right, on the left, or on the right.
+Use relative visual distance only when the image supports it. Do not invent steps or metres; a single image does not provide reliable physical distance.
+Mention a visible open area only as an observation, not as a recommendation to walk there.
+If the image is unclear, say that it is unclear and ask for a small camera adjustment.
+Do not guess hidden objects, exact measurements, movement, or anything outside the frame.
+$languageInstruction
+""".trimIndent()
+        }
     }
+
     private val modelFile = File(
-    context.applicationContext.filesDir,
-    MODEL_RELATIVE_PATH
-)
+        context.applicationContext.filesDir,
+        MODEL_RELATIVE_PATH
+    )
 
     private var engine: Engine? = null
 
@@ -48,7 +57,10 @@ class VlmSceneAnalyzer(context: Context) : AutoCloseable {
     private var closed = false
 
     @Synchronized
-    fun describeScene(snapshot: Bitmap): String {
+    fun describeScene(
+        snapshot: Bitmap,
+        speechLanguage: String = "English (US)"
+    ): String {
         val totalStart = android.os.SystemClock.elapsedRealtime()
 
         Log.i(TAG, "STEP 1: describeScene started")
@@ -71,33 +83,28 @@ class VlmSceneAnalyzer(context: Context) : AutoCloseable {
 
             Log.i(TAG, "STEP 3: Creating conversation")
             val conversation = requireNotNull(engine).createConversation(
-    ConversationConfig(
-        maxOutputToken = 56
-    )
-)
+                ConversationConfig(maxOutputToken = 80)
+            )
             Log.i(TAG, "STEP 3 SUCCESS: Conversation created")
 
             try {
                 Log.i(TAG, "STEP 4: Encoding camera image")
                 val encodeStart = android.os.SystemClock.elapsedRealtime()
-
                 val imageBytes = encodeSnapshot(snapshot)
 
                 Log.i(
                     TAG,
-                    "STEP 4 SUCCESS: Image encoded; " +
-                        "bytes=${imageBytes.size}; " +
+                    "STEP 4 SUCCESS: Image encoded; bytes=${imageBytes.size}; " +
                         "timeMs=${android.os.SystemClock.elapsedRealtime() - encodeStart}"
                 )
 
                 val input = Contents.of(
                     Content.ImageBytes(imageBytes),
-                    Content.Text(SCENE_PROMPT)
+                    Content.Text(scenePrompt(speechLanguage))
                 )
 
                 Log.i(TAG, "STEP 5: sendMessage STARTED")
                 val inferenceStart = android.os.SystemClock.elapsedRealtime()
-
                 val response = conversation.sendMessage(input)
 
                 Log.i(
@@ -139,72 +146,59 @@ class VlmSceneAnalyzer(context: Context) : AutoCloseable {
         }
     }
 
+    private fun initializeEngine() {
+        if (engine != null) {
+            Log.i(TAG, "Existing engine will be reused")
+            return
+        }
 
-private fun initializeEngine() {
-    if (engine != null) {
-        Log.i(TAG, "Existing engine will be reused")
-        return
-    }
+        Log.i(TAG, "Model path: ${modelFile.absolutePath}")
+        Log.i(TAG, "Model exists: ${modelFile.isFile}")
+        Log.i(TAG, "Model size: ${modelFile.length()} bytes")
 
-    Log.i(TAG, "Model path: ${modelFile.absolutePath}")
-    Log.i(TAG, "Model exists: ${modelFile.isFile}")
-    Log.i(TAG, "Model size: ${modelFile.length()} bytes")
+        check(modelFile.isFile) {
+            "SmolVLM2 model file not found: ${modelFile.absolutePath}"
+        }
 
-    check(modelFile.isFile) {
-        "SmolVLM2 model file not found: ${modelFile.absolutePath}"
-    }
+        fun initializeWithBackend(
+            backendName: String,
+            selectedBackend: Backend
+        ): Engine {
+            Log.i(TAG, "$backendName engine initialization STARTED")
 
-    fun initializeWithBackend(
-        backendName: String,
-        selectedBackend: Backend
-    ): Engine {
-        Log.i(TAG, "$backendName engine initialization STARTED")
-
-        val candidate = Engine(
-            EngineConfig(
-                modelPath = modelFile.absolutePath,
-                backend = selectedBackend,
-                visionBackend = selectedBackend
+            val candidate = Engine(
+                EngineConfig(
+                    modelPath = modelFile.absolutePath,
+                    backend = selectedBackend,
+                    visionBackend = selectedBackend
+                )
             )
-        )
 
-        val initStart = android.os.SystemClock.elapsedRealtime()
+            val initStart = android.os.SystemClock.elapsedRealtime()
+            candidate.initialize()
 
-        candidate.initialize()
+            Log.i(
+                TAG,
+                "$backendName engine initialization SUCCESS: " +
+                    "${android.os.SystemClock.elapsedRealtime() - initStart} ms"
+            )
 
-        Log.i(
-            TAG,
-            "$backendName engine initialization SUCCESS: " +
-                "${android.os.SystemClock.elapsedRealtime() - initStart} ms"
-        )
+            return candidate
+        }
 
-        return candidate
+        try {
+            Log.i(TAG, "Attempting GPU backend")
+            engine = initializeWithBackend("GPU", Backend.GPU())
+            Log.i(TAG, "ACTIVE BACKEND: GPU")
+        } catch (gpuException: Exception) {
+            Log.e(TAG, "GPU initialization failed; switching to CPU", gpuException)
+            engine = initializeWithBackend("CPU", Backend.CPU())
+            Log.i(TAG, "ACTIVE BACKEND: CPU (GPU fallback)")
+        }
     }
-
-    try {
-        Log.i(TAG, "Attempting GPU backend")
-
-        engine = initializeWithBackend(
-            "GPU",
-            Backend.GPU()
-        )
-
-        Log.i(TAG, "ACTIVE BACKEND: GPU")
-    } catch (gpuException: Exception) {
-        Log.e(TAG, "GPU initialization failed; switching to CPU", gpuException)
-
-        engine = initializeWithBackend(
-            "CPU",
-            Backend.CPU()
-        )
-
-        Log.i(TAG, "ACTIVE BACKEND: CPU (GPU fallback)")
-    }
-}
 
     private fun encodeSnapshot(snapshot: Bitmap): ByteArray {
         val largestDimension = maxOf(snapshot.width, snapshot.height)
-
         val scale = minOf(
             1f,
             MAX_IMAGE_DIMENSION.toFloat() / largestDimension
@@ -234,7 +228,6 @@ private fun initializeEngine() {
                 ) {
                     "Could not encode camera snapshot"
                 }
-
                 output.toByteArray()
             }
         } finally {
@@ -248,10 +241,8 @@ private fun initializeEngine() {
 
         Log.i(TAG, "Closing VLM engine")
         closed = true
-
         engine?.close()
         engine = null
-
         Log.i(TAG, "VLM engine closed")
     }
 }
