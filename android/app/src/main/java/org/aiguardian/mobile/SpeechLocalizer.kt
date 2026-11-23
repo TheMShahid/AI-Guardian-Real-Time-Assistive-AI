@@ -105,4 +105,52 @@ object SpeechLocalizer {
             }
         }
     }
+
+    fun localizeObstacle(
+        label: String,
+        direction: String,
+        apparentProximity: String,
+        language: String
+    ): String {
+        val base = localize(label, direction, language)
+        val urgency = when (apparentProximity) {
+            "very-close-looking" -> when (language) {
+                "Urdu (Pakistan)" -> "خطرہ، یہ چیز تصویر میں بہت بڑی اور بظاہر بہت قریب ہے۔"
+                "Pashto (Afghanistan)" -> "خبرتیا، دا شی په انځور کې ډېر لوی او ظاهراً ډېر نږدې ښکاري."
+                else -> "Warning. It looks very close."
+            }
+            "close-looking" -> when (language) {
+                "Urdu (Pakistan)" -> "یہ چیز بظاہر قریب ہے۔"
+                "Pashto (Afghanistan)" -> "دا شی ظاهراً نږدې ښکاري."
+                else -> "It appears close."
+            }
+            else -> when (language) {
+                "Urdu (Pakistan)" -> "یہ چیز تصویر میں نسبتاً چھوٹی نظر آ رہی ہے۔"
+                "Pashto (Afghanistan)" -> "دا شی په انځور کې نسبتاً کوچنی ښکاري."
+                else -> "It appears smaller in the camera view."
+            }
+        }
+        return "$urgency $base"
+    }
+
+    fun localizeUnobservedSector(sector: String, language: String): String {
+        return when (language) {
+            "Urdu (Pakistan)" -> when (sector) {
+                "left" -> "کیمرے میں بائیں طرف کوئی پہچانی گئی رکاوٹ نظر نہیں آئی۔"
+                "right" -> "کیمرے میں دائیں طرف کوئی پہچانی گئی رکاوٹ نظر نہیں آئی۔"
+                else -> "کیمرے میں سامنے کوئی پہچانی گئی رکاوٹ نظر نہیں آئی۔"
+            }
+            "Pashto (Afghanistan)" -> when (sector) {
+                "left" -> "د کمرې په چپ لوري کې پېژندل شوی خنډ ونه موندل شو."
+                "right" -> "د کمرې په ښي لوري کې پېژندل شوی خنډ ونه موندل شو."
+                else -> "د کمرې مخې ته پېژندل شوی خنډ ونه موندل شو."
+            }
+            else -> when (sector) {
+                "left" -> "No recognized obstacle detected on your left."
+                "right" -> "No recognized obstacle detected on your right."
+                else -> "No recognized obstacle detected directly ahead."
+            }
+        }
+    }
+
 }
