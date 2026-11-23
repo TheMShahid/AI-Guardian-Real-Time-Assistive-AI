@@ -416,11 +416,14 @@ val voiceAssistant = remember(context) {
         onUtteranceEvent = { utteranceId, completed ->
             if (
                 !completed &&
-                utteranceId.startsWith("guardian-spatial-announcement")
+                (
+                    utteranceId.startsWith("guardian-spatial-announcement") ||
+                    utteranceId.startsWith("guardian-urgent-obstacle")
+                )
             ) {
                 Log.w(
                     "GuardianVoice",
-                    "Spatial announcement playback failed; allowing retry"
+                    "Obstacle announcement playback failed; allowing retry"
                 )
                 announcedSpatialItems = emptySet()
             }
@@ -533,6 +536,7 @@ val voiceAssistant = remember(context) {
     voiceAssistant.stop()
     obstacleStabilityTracker.reset()
     announcedSpatialItems = emptySet()
+    announcedOpenSectors = emptySet()
     detectionFrameSequence++
 
     cameraSessionId++
