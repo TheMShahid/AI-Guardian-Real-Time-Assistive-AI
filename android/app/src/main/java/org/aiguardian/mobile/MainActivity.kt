@@ -619,7 +619,7 @@ LaunchedEffect(
             val result = withContext(Dispatchers.IO) {
                 try {
                     Result.success(
-                        vlmSceneAnalyzer.describeScene(snapshot)
+                        vlmSceneAnalyzer.describeScene(snapshot, speechLanguage)
                     )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
