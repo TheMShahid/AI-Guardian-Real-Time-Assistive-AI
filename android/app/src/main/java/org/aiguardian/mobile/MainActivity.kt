@@ -279,6 +279,12 @@ private fun GuardianHome(
     var distanceCalibrationCapture by remember {
         mutableStateOf<DistanceCalibrationCapture?>(null)
     }
+    val distanceCalibrationCaptureTracker = remember {
+        DistanceCalibrationCaptureTracker()
+    }
+    var distanceCalibrationCaptureInProgress by remember {
+        mutableStateOf(false)
+    }
     var strideLengthMeters by remember {
         mutableStateOf(DistanceCalibrationStore.loadStrideLength(context))
     }
@@ -547,6 +553,8 @@ val voiceAssistant = remember(context) {
     }
 
     fun stopCamera() {
+    distanceCalibrationCaptureTracker.cancel()
+    distanceCalibrationCaptureInProgress = false
     voiceAssistant.stop()
     obstacleStabilityTracker.reset()
     obstacleApproachTracker.reset()
@@ -988,6 +996,41 @@ LaunchedEffect(
     inferenceMs = duration
     analysisReady = true
 
+    if (distanceCalibrationCaptureInProgress) {
+        val candidate = found
+            .filter { VisualDistanceEstimator.supportsObject(it.label) }
+            .maxByOrNull { it.confidence }
+
+        val frameSample = candidate?.let { detection ->
+            DistanceCalibrationCapture.fromDetection(
+                label = detection.label,
+                boxLeftPixels = detection.boundingBox.left,
+                boxTopPixels = detection.boundingBox.top,
+                boxRightPixels = detection.boundingBox.right,
+                boxBottomPixels = detection.boundingBox.bottom,
+                frameWidthPixels = detection.frameWidth,
+                frameHeightPixels = detection.frameHeight,
+                capturedAtEpochMs = System.currentTimeMillis()
+            )
+        }
+
+        val stableCapture = frameSample?.let {
+            distanceCalibrationCaptureTracker.add(it)
+        }
+
+        if (stableCapture != null) {
+            distanceCalibrationCapture = stableCapture
+            distanceCalibrationCaptureInProgress = false
+            if (voiceAnnouncements) {
+                voiceAssistant.speak(
+                    "Stable calibration sample captured for ${stableCapture.referenceLabel}. Open Settings and enter the measured object height and camera distance.",
+                    flushQueue = true,
+                    utteranceId = "distance-calibration-captured"
+                )
+            }
+        }
+    }
+
     if (sessionStartedAt > 0L && found.isNotEmpty()) {
         val frameCounts = found
             .groupingBy { it.label }
@@ -1020,28 +1063,14 @@ LaunchedEffect(
                             sceneRequestReady = true
                         },
                         onCaptureCalibrationSample = {
-                            val supported = detections
-                                .filter { VisualDistanceEstimator.supportsObject(it.label) }
-                                .maxByOrNull { it.confidence }
-                            distanceCalibrationCapture = supported?.let { detection ->
-                                DistanceCalibrationCapture.fromDetection(
-                                    label = detection.label,
-                                    boxHeightPixels = detection.boundingBox.height(),
-                                    frameHeightPixels = detection.frameHeight,
-                                    capturedAtEpochMs = System.currentTimeMillis()
-                                )
-                            }
-                            if (distanceCalibrationCapture == null && voiceAnnouncements) {
+                            distanceCalibrationCapture = null
+                            distanceCalibrationCaptureTracker.start()
+                            distanceCalibrationCaptureInProgress = true
+                            if (voiceAnnouncements) {
                                 voiceAssistant.speak(
-                                    "No suitable calibration object is detected. Keep one supported object fully visible and try again.",
+                                    "Keep one supported object fully visible and still. Capturing five stable camera frames.",
                                     flushQueue = true,
-                                    utteranceId = "distance-calibration-capture-failed"
-                                )
-                            } else if (voiceAnnouncements) {
-                                voiceAssistant.speak(
-                                    "Calibration sample for ${distanceCalibrationCapture?.referenceLabel ?: "object"} captured. Open Settings and enter its measured height and distance.",
-                                    flushQueue = true,
-                                    utteranceId = "distance-calibration-captured"
+                                    utteranceId = "distance-calibration-capture-started"
                                 )
                             }
                         }
@@ -1064,6 +1093,8 @@ LaunchedEffect(
                             distanceCalibration = calibration
                             strideLengthMeters = stride
                             distanceCalibrationCapture = null
+                            distanceCalibrationCaptureTracker.cancel()
+                            distanceCalibrationCaptureInProgress = false
                             announcedSpatialItems = emptySet()
                             announcedApproachItems = emptySet()
                         },
@@ -1071,6 +1102,8 @@ LaunchedEffect(
                             DistanceCalibrationStore.clearCalibration(context)
                             distanceCalibration = null
                             distanceCalibrationCapture = null
+                            distanceCalibrationCaptureTracker.cancel()
+                            distanceCalibrationCaptureInProgress = false
                         },
                         themeMode = themeMode,
                         onThemeModeChange = onThemeModeChange,
@@ -2637,10 +2670,8 @@ private fun CameraScreen(
                         }
 
                         DropdownMenuItem(
-                            text = { Text("Capture distance calibration sample") },
-                            enabled = detections.any {
-                                VisualDistanceEstimator.supportsObject(it.label)
-                            },
+                            text = { Text("Capture stable distance calibration sample") },
+                            enabled = analysisReady,
                             onClick = {
                                 menuExpanded = false
                                 onCaptureCalibrationSample()
