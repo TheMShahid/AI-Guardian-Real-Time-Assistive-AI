@@ -276,6 +276,9 @@ private fun GuardianHome(
     var distanceCalibration by remember {
         mutableStateOf(DistanceCalibrationStore.loadCalibration(context))
     }
+    var distanceCalibrationCapture by remember {
+        mutableStateOf<DistanceCalibrationCapture?>(null)
+    }
     var strideLengthMeters by remember {
         mutableStateOf(DistanceCalibrationStore.loadStrideLength(context))
     }
@@ -1015,6 +1018,32 @@ LaunchedEffect(
                         },
                         onYoloAnalyzerReleased = {
                             sceneRequestReady = true
+                        },
+                        onCaptureCalibrationSample = {
+                            val supported = detections
+                                .filter { it.label in setOf("person", "chair", "backpack", "car", "bicycle", "dog", "cat") }
+                                .maxByOrNull { it.confidence }
+                            distanceCalibrationCapture = supported?.let { detection ->
+                                DistanceCalibrationCapture.fromDetection(
+                                    label = detection.label,
+                                    boxHeightPixels = detection.boundingBox.height(),
+                                    frameHeightPixels = detection.frameHeight,
+                                    capturedAtEpochMs = System.currentTimeMillis()
+                                )
+                            }
+                            if (distanceCalibrationCapture == null && voiceAnnouncements) {
+                                voiceAssistant.speak(
+                                    "No suitable calibration object is detected. Keep one supported object fully visible and try again.",
+                                    flushQueue = true,
+                                    utteranceId = "distance-calibration-capture-failed"
+                                )
+                            } else if (voiceAnnouncements) {
+                                voiceAssistant.speak(
+                                    "Calibration sample captured. Open Settings to enter its measured height and distance.",
+                                    flushQueue = true,
+                                    utteranceId = "distance-calibration-captured"
+                                )
+                            }
                         }
                     )
                 }
@@ -1028,6 +1057,7 @@ LaunchedEffect(
                         speechLanguageStatus = speechLanguageStatus,
                         distanceCalibration = distanceCalibration,
                         strideLengthMeters = strideLengthMeters,
+                        distanceCalibrationCapture = distanceCalibrationCapture,
                         onSaveDistanceCalibration = { calibration, stride ->
                             DistanceCalibrationStore.saveCalibration(context, calibration)
                             DistanceCalibrationStore.saveStrideLength(context, stride)
@@ -2503,7 +2533,8 @@ private fun CameraScreen(
     onVoice: () -> Unit,
     voiceReady: Boolean,
     onPreviewViewChanged: (PreviewView?) -> Unit,
-    onYoloAnalyzerReleased: () -> Unit
+    onYoloAnalyzerReleased: () -> Unit,
+    onCaptureCalibrationSample: () -> Unit
 
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -2602,6 +2633,17 @@ private fun CameraScreen(
                                 }
                             )
                         }
+
+                        DropdownMenuItem(
+                            text = { Text("Capture distance calibration sample") },
+                            enabled = detections.any {
+                                it.label in setOf("person", "chair", "backpack", "car", "bicycle", "dog", "cat")
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onCaptureCalibrationSample()
+                            }
+                        )
 
                         DropdownMenuItem(
                             text = {
