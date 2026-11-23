@@ -31,15 +31,18 @@ data class DistanceCalibration(
  * object-size priors and imperfect bounding boxes; it is not a safety guarantee.
  */
 data class VisualDistanceEstimate(
-    val minimumMeters: Float,
-    val maximumMeters: Float,
+    val minimumMeters: Float?,
+    val maximumMeters: Float?,
     val minimumSteps: Int?,
     val maximumSteps: Int?,
     val quality: DistanceQuality
 ) {
     init {
-        require(minimumMeters.isFinite() && maximumMeters.isFinite())
-        require(minimumMeters > 0f && maximumMeters >= minimumMeters)
+        if (minimumMeters != null || maximumMeters != null) {
+            require(minimumMeters != null && maximumMeters != null)
+            require(minimumMeters.isFinite() && maximumMeters.isFinite())
+            require(minimumMeters > 0f && maximumMeters >= minimumMeters)
+        }
     }
 }
 
@@ -164,13 +167,10 @@ object VisualDistanceEstimator {
     }
 
     private fun unavailable(quality: DistanceQuality) = VisualDistanceEstimate(
-        minimumMeters = 0f,
-        maximumMeters = 0f,
+        minimumMeters = null,
+        maximumMeters = null,
         minimumSteps = null,
         maximumSteps = null,
         quality = quality
-    ).let {
-        // Unavailable values are represented by a dedicated result factory below.
-        it
-    }
+    )
 }
