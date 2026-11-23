@@ -331,6 +331,8 @@ var sceneInferenceStarted by remember {
     var detections by remember { mutableStateOf<List<Detection>>(emptyList()) }
     var detectionFrameSequence by remember { mutableLongStateOf(0L) }
     val obstacleStabilityTracker = remember { ObstacleStabilityTracker() }
+    val obstacleApproachTracker = remember { ObstacleApproachTracker() }
+    var announcedApproachItems by remember { mutableStateOf<Set<String>>(emptySet()) }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
 }
@@ -537,6 +539,8 @@ val voiceAssistant = remember(context) {
     fun stopCamera() {
     voiceAssistant.stop()
     obstacleStabilityTracker.reset()
+    obstacleApproachTracker.reset()
+    announcedApproachItems = emptySet()
     announcedSpatialItems = emptySet()
     announcedOpenSectors = emptySet()
     detectionFrameSequence++
@@ -807,10 +811,16 @@ LaunchedEffect(
         "${obstacle.detection.label}|${obstacle.direction}"
     }.toSet()
 
+    val nowElapsedMs = SystemClock.elapsedRealtime()
     val stableKeys = obstacleStabilityTracker.update(
         currentKeys = currentKeys,
         frameId = detectionFrameSequence,
-        nowMs = SystemClock.elapsedRealtime()
+        nowMs = nowElapsedMs
+    )
+    val approachingKeys = obstacleApproachTracker.update(
+        obstacles = prioritizedObstacles,
+        frameId = detectionFrameSequence,
+        nowMs = nowElapsedMs
     )
 
     val stableItems = prioritizedObstacles.filter { obstacle ->
@@ -820,11 +830,13 @@ LaunchedEffect(
 
     if (!voiceAnnouncements) {
         announcedSpatialItems = emptySet()
+        announcedApproachItems = emptySet()
         announcedOpenSectors = emptySet()
         return@LaunchedEffect
     }
 
     announcedSpatialItems = announcedSpatialItems.intersect(currentKeys)
+    announcedApproachItems = announcedApproachItems.intersect(currentKeys)
 
     val openSectors = PathAwareObstacleAnalyzer
         .sectorsWithoutRecognizedObstacles(detections)
@@ -840,7 +852,8 @@ LaunchedEffect(
 
     val newItems = stableItems.filter { obstacle ->
         val key = "${obstacle.detection.label}|${obstacle.direction}"
-        key !in announcedSpatialItems
+        key !in announcedSpatialItems ||
+            (key in approachingKeys && key !in announcedApproachItems)
     }
 
     val urgentItems = newItems.filter {
@@ -874,7 +887,11 @@ LaunchedEffect(
             label = obstacle.detection.label,
             direction = obstacle.direction,
             apparentProximity = obstacle.apparentProximity,
-            language = speechLanguage
+            language = speechLanguage,
+            appearsToApproach = (
+                "${obstacle.detection.label}|${obstacle.direction}" in approachingKeys &&
+                    "${obstacle.detection.label}|${obstacle.direction}" !in announcedApproachItems
+            )
         )
     }
 
@@ -902,6 +919,10 @@ LaunchedEffect(
     if (accepted) {
         announcedSpatialItems = announcedSpatialItems + newItems.map { obstacle ->
             "${obstacle.detection.label}|${obstacle.direction}"
+        }
+        announcedApproachItems = announcedApproachItems + newItems.mapNotNull { obstacle ->
+            val key = "${obstacle.detection.label}|${obstacle.direction}"
+            key.takeIf { it in approachingKeys }
         }
         if (newOpenSector != null) {
             announcedOpenSectors = announcedOpenSectors + newOpenSector
