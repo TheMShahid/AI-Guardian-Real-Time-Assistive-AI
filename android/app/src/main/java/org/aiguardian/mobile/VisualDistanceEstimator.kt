@@ -83,6 +83,13 @@ object VisualDistanceEstimator {
         "cat" to 0.28f
     )
 
+    /** True when this COCO label has a configured approximate physical-height prior. */
+    fun supportsObject(label: String): Boolean =
+        typicalObjectHeightsMeters.containsKey(label.trim().lowercase())
+
+    /** Labels for which this experimental estimator has a size prior. */
+    fun supportedObjectLabels(): Set<String> = typicalObjectHeightsMeters.keys
+
     // Conservative relative uncertainty around the class-size prior.
     private const val RELATIVE_UNCERTAINTY = 0.35f
     private const val MIN_BOX_HEIGHT_RATIO = 0.015f
