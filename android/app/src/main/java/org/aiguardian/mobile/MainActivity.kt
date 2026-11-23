@@ -818,7 +818,12 @@ LaunchedEffect(
         nowMs = nowElapsedMs
     )
     val approachingKeys = obstacleApproachTracker.update(
-        obstacles = prioritizedObstacles,
+        obstacles = prioritizedObstacles.map { obstacle ->
+            ObstacleSizeObservation(
+                key = "${obstacle.detection.label}|${obstacle.direction}",
+                normalizedHeight = obstacle.normalizedHeight
+            )
+        },
         frameId = detectionFrameSequence,
         nowMs = nowElapsedMs
     )
