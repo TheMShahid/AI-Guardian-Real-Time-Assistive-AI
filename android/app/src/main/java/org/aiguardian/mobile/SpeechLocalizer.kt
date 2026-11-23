@@ -97,7 +97,8 @@ object SpeechLocalizer {
         label: String,
         direction: String,
         apparentProximity: String,
-        language: String
+        language: String,
+        appearsToApproach: Boolean = false
     ): String {
         val normalizedLabel = label.trim().lowercase()
         val name = when (language) {
@@ -106,6 +107,17 @@ object SpeechLocalizer {
             else -> label
         }
         val directionText = directionPhrase(direction, language)
+
+        if (appearsToApproach) {
+            return when (language) {
+                "Urdu (Pakistan)" ->
+                    "توجہ دیں! $directionText $name کا سائز بڑھتا دکھائی دے رہا ہے، یعنی یہ قریب آتا ہوا ہو سکتا ہے۔ براہِ کرم رک جائیں اور راستہ خود چیک کریں۔"
+                "Pashto (Afghanistan)" ->
+                    "پام وکړئ! $name ستاسو $directionText لوی ښکاري او ښايي رانږدې کېږي. مهرباني وکړئ ودرېږئ او لاره وګورئ."
+                else ->
+                    "Attention. The $name appears to be getting closer, $directionText. Please stop and check your path."
+            }
+        }
 
         return when (apparentProximity) {
             "very-close-looking" -> when (language) {
