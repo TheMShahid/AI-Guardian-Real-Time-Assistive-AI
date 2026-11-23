@@ -273,6 +273,13 @@ private fun GuardianHome(
         )
     }
 
+    var distanceCalibration by remember {
+        mutableStateOf(DistanceCalibrationStore.loadCalibration(context))
+    }
+    var strideLengthMeters by remember {
+        mutableStateOf(DistanceCalibrationStore.loadStrideLength(context))
+    }
+
 
     var lastAnnouncementTime by remember {
         mutableLongStateOf(0L)
@@ -801,8 +808,9 @@ LaunchedEffect(
     cameraRunning,
     voiceAnnouncements,
     ttsReady,
-    speechLanguage
-
+    speechLanguage,
+    distanceCalibration,
+    strideLengthMeters
 ) {
     if (!cameraRunning) return@LaunchedEffect
 
@@ -896,6 +904,15 @@ LaunchedEffect(
             appearsToApproach = (
                 "${obstacle.detection.label}|${obstacle.direction}" in approachingKeys &&
                     "${obstacle.detection.label}|${obstacle.direction}" !in announcedApproachItems
+            ),
+            distanceText = DistanceSpeechFormatter.format(
+                estimate = VisualDistanceEstimator.estimate(
+                    label = obstacle.detection.label,
+                    normalizedBoxHeight = obstacle.normalizedHeight,
+                    calibration = distanceCalibration,
+                    strideLengthMeters = strideLengthMeters
+                ),
+                language = speechLanguage
             )
         )
     }
@@ -1009,6 +1026,18 @@ LaunchedEffect(
                         speechRate = speechRate,
                         voiceAnnouncements = voiceAnnouncements,
                         speechLanguageStatus = speechLanguageStatus,
+                        distanceCalibration = distanceCalibration,
+                        strideLengthMeters = strideLengthMeters,
+                        onSaveDistanceCalibration = { calibration, stride ->
+                            DistanceCalibrationStore.saveCalibration(context, calibration)
+                            DistanceCalibrationStore.saveStrideLength(context, stride)
+                            distanceCalibration = calibration
+                            strideLengthMeters = stride
+                        },
+                        onClearDistanceCalibration = {
+                            DistanceCalibrationStore.clearCalibration(context)
+                            distanceCalibration = null
+                        },
                         themeMode = themeMode,
                         onThemeModeChange = onThemeModeChange,
                         onInterfaceLanguageChange = {
