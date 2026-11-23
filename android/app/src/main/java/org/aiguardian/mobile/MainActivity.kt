@@ -380,14 +380,28 @@ var speechLanguageStatus by remember {
 var ttsReady by remember { mutableStateOf(false) }
 
 val voiceAssistant = remember(context) {
-    VoiceAssistant(context) { ready ->
-        ttsReady = ready
-
-        if (!ready) {
-            speechLanguageStatus =
-                "Speech engine initialization failed. Check your installed text-to-speech service."
+    VoiceAssistant(
+        context = context,
+        onReadyChanged = { ready ->
+            ttsReady = ready
+            if (!ready) {
+                speechLanguageStatus =
+                    "Speech engine initialization failed. Check your installed text-to-speech service."
+            }
+        },
+        onUtteranceEvent = { utteranceId, completed ->
+            if (
+                !completed &&
+                utteranceId.startsWith("guardian-spatial-announcement")
+            ) {
+                Log.w(
+                    "GuardianVoice",
+                    "Spatial announcement playback failed; allowing retry"
+                )
+                announcedSpatialItems = emptySet()
+            }
         }
-    }
+    )
 }
 
     var testing by remember { mutableStateOf(false) }
@@ -747,61 +761,86 @@ if (voiceAnnouncements && ttsReady) {
 
     // Announce newly detected objects with their spatial positions.
     // Announce only prioritized obstacles in the forward walking corridor.
-LaunchedEffect(detections, voiceAnnouncements, ttsReady) {
-
-    val currentSpatialItems =
-        PathAwareObstacleAnalyzer.analyze(detections)
-            .map { obstacle ->
-                obstacle.detection.label to obstacle.direction
-            }
-            .distinct()
+LaunchedEffect(
+    detections,
+    voiceAnnouncements,
+    ttsReady,
+    speechLanguage
+) {
+    val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
+    val currentSpatialItems = prioritizedObstacles
+        .map { obstacle ->
+            obstacle.detection.label to obstacle.direction
+        }
+        .distinct()
 
     val currentKeys = currentSpatialItems.map { (label, direction) ->
         "$label|$direction"
     }.toSet()
 
-    val newItems = currentSpatialItems.filter { (label, direction) ->
-        "$label|$direction" !in announcedSpatialItems
+    Log.d(
+        "GuardianVoice",
+        "Camera speech evaluation: detections=" + detections.size +
+            ", prioritized=" + currentSpatialItems.size +
+            ", enabled=" + voiceAnnouncements +
+            ", ttsReady=" + ttsReady
+    )
+
+    if (!voiceAnnouncements) {
+        announcedSpatialItems = emptySet()
+        return@LaunchedEffect
     }
 
     if (currentKeys.isEmpty()) {
-
         announcedSpatialItems = emptySet()
+        return@LaunchedEffect
+    }
 
-    } else if (voiceAnnouncements && ttsReady && newItems.isNotEmpty()) {
+    announcedSpatialItems = announcedSpatialItems.intersect(currentKeys)
 
-        val currentTime = System.currentTimeMillis()
+    if (!ttsReady) {
+        return@LaunchedEffect
+    }
 
-        if (currentTime - lastAnnouncementTime >= 3000L) {
+    val newItems = currentSpatialItems.filter { (label, direction) ->
+        "$label|$direction" !in announcedSpatialItems
+    }
+    if (newItems.isEmpty()) {
+        return@LaunchedEffect
+    }
 
-            val message = newItems
-                .sortedBy { it.first }
-                .joinToString(". ") { (label, direction) ->
-                    SpeechLocalizer.localize(
-                        label = label,
-                        direction = direction,
-                        language = speechLanguage
-                    )
-                }
+    val currentTime = System.currentTimeMillis()
+    if (currentTime - lastAnnouncementTime < 3000L) {
+        return@LaunchedEffect
+    }
 
-            voiceAssistant.speak(
-                message,
-                flushQueue = false,
-                utteranceId = "guardian-spatial-announcement"
+    val spokenMessage = newItems
+        .sortedBy { it.first }
+        .joinToString(" ") { (label, direction) ->
+            SpeechLocalizer.localize(
+                label = label,
+                direction = direction,
+                language = speechLanguage
             )
-
-            announcedSpatialItems =
-                announcedSpatialItems + newItems.map { (label, direction) ->
-                    "$label|$direction"
-                }
-
-            lastAnnouncementTime = currentTime
         }
 
-    } else {
+    val accepted = voiceAssistant.speak(
+        spokenMessage,
+        flushQueue = true,
+        utteranceId = "guardian-spatial-announcement"
+    )
 
+    if (accepted) {
         announcedSpatialItems =
-            announcedSpatialItems.intersect(currentKeys)
+            announcedSpatialItems + newItems.map { (label, direction) ->
+                "$label|$direction"
+            }
+        lastAnnouncementTime = currentTime
+    } else {
+        Log.w(
+            "GuardianVoice",
+            "Spatial announcement was rejected; it will be retried on a later camera frame"
+        )
     }
 }
 
