@@ -567,7 +567,7 @@ val voiceAssistant = remember(context) {
     // Start scene inference while the live YOLO pipeline continues.
     sceneRequestReady = true
 
-    // Retain the captured image until YOLO has been released.
+    // Keep this app-owned snapshot alive until VLM inference cleanup.
     pendingSceneSnapshot?.let { previous ->
         if (!previous.isRecycled) previous.recycle()
     }
