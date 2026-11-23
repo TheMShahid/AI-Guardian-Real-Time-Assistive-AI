@@ -10,7 +10,8 @@ data class PrioritizedObstacle(
     val detection: Detection,
     val direction: String,
     val relevanceScore: Float,
-    val apparentProximity: String
+    val apparentProximity: String,
+    val normalizedHeight: Float
 )
 
 object PathAwareObstacleAnalyzer {
@@ -88,7 +89,8 @@ object PathAwareObstacleAnalyzer {
                 detection = detection,
                 direction = direction,
                 relevanceScore = relevanceScore,
-                apparentProximity = apparentProximity
+                apparentProximity = apparentProximity,
+                normalizedHeight = normalizedHeight
             )
         }
             .sortedByDescending { it.relevanceScore }
