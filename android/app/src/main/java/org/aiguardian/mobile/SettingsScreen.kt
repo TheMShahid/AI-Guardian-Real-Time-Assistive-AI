@@ -591,11 +591,17 @@ private fun DistanceCalibrationSettings(
     val referenceLabel = remember(calibration, capture) {
         mutableStateOf(capture?.referenceLabel ?: calibration?.referenceLabel ?: "person")
     }
+    val isNewCapture = capture != null &&
+        (calibration == null || capture.capturedAtEpochMs > calibration.calibratedAtEpochMs)
     val knownHeight = remember(calibration, capture) {
-        mutableStateOf(calibration?.referenceHeightMeters?.toString() ?: "")
+        mutableStateOf(
+            if (isNewCapture) "" else calibration?.referenceHeightMeters?.toString() ?: ""
+        )
     }
     val measuredDistance = remember(calibration, capture) {
-        mutableStateOf(calibration?.referenceDistanceMeters?.toString() ?: "")
+        mutableStateOf(
+            if (isNewCapture) "" else calibration?.referenceDistanceMeters?.toString() ?: ""
+        )
     }
     val normalizedBoxHeight = remember(calibration, capture) {
         mutableStateOf(
