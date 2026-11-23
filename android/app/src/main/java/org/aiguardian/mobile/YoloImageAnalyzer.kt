@@ -9,6 +9,7 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.view.transform.ImageProxyTransformFactory
 import androidx.camera.view.transform.OutputTransform
 import android.os.SystemClock
+import android.util.Log
 
 class YoloImageAnalyzer(
     context: Context,
@@ -57,13 +58,25 @@ class YoloImageAnalyzer(
             val sourceTransform =
                 transformFactory.getOutputTransform(image)
 
+            val conversionStart = SystemClock.elapsedRealtime()
             val bitmap = imageToBitmap(image)
+            val conversionTime = SystemClock.elapsedRealtime() - conversionStart
 
             try {
+                val detectionStart = SystemClock.elapsedRealtime()
                 val detections = detector.value.detect(bitmap)
+                val detectionTime = SystemClock.elapsedRealtime() - detectionStart
 
                 val inferenceTime =
                     SystemClock.elapsedRealtime() - startTime
+
+                Log.d(
+                    "GuardianPerformance",
+                    "frame=${image.width}x${image.height}, " +
+                        "bitmapConversionMs=$conversionTime, " +
+                        "yoloDetectionMs=$detectionTime, totalMs=$inferenceTime, " +
+                        "detections=${detections.size}"
+                )
 
                 onDetections(
                     detections,
