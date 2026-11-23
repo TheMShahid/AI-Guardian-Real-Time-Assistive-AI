@@ -1033,6 +1033,8 @@ LaunchedEffect(
                             DistanceCalibrationStore.saveStrideLength(context, stride)
                             distanceCalibration = calibration
                             strideLengthMeters = stride
+                            announcedSpatialItems = emptySet()
+                            announcedApproachItems = emptySet()
                         },
                         onClearDistanceCalibration = {
                             DistanceCalibrationStore.clearCalibration(context)
