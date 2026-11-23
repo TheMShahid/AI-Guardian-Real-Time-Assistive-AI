@@ -108,45 +108,55 @@ object SpeechLocalizer {
             else -> label
         }
         val directionText = directionPhrase(direction, language)
-        val spokenName = if (!distanceText.isNullOrBlank()) {
-            "$name، $distanceText"
-        } else name
+        val distanceSentence = if (!distanceText.isNullOrBlank()) {
+            when (language) {
+                "Urdu (Pakistan)" -> " اندازاً فاصلہ $distanceText ہے۔"
+                "Pashto (Afghanistan)" -> " اټکلی واټن $distanceText دی."
+                else -> " Estimated distance: $distanceText."
+            }
+        } else {
+            when (language) {
+                "Urdu (Pakistan)" -> " درست فاصلہ معلوم نہیں۔"
+                "Pashto (Afghanistan)" -> " کره واټن نه دی معلوم."
+                else -> " Exact distance is unknown."
+            }
+        }
 
         if (appearsToApproach) {
             return when (language) {
                 "Urdu (Pakistan)" ->
-                    "توجہ دیں! $directionText $spokenName کا سائز بڑھتا دکھائی دے رہا ہے، یعنی یہ قریب آتا ہوا ہو سکتا ہے۔ براہِ کرم رک جائیں اور راستہ خود چیک کریں۔"
+                    "توجہ دیں! $directionText $name کا سائز بڑھتا دکھائی دے رہا ہے، یعنی یہ قریب آتا ہوا ہو سکتا ہے۔$distanceSentence براہِ کرم رک جائیں اور راستہ خود چیک کریں۔"
                 "Pashto (Afghanistan)" ->
-                    "پام وکړئ! $spokenName ستاسو $directionText لوی ښکاري او ښايي رانږدې کېږي. مهرباني وکړئ ودرېږئ او لاره وګورئ."
+                    "پام وکړئ! $name ستاسو $directionText لوی ښکاري او ښايي رانږدې کېږي.$distanceSentence مهرباني وکړئ ودرېږئ او لاره وګورئ."
                 else ->
-                    "Attention. The $spokenName appears to be getting closer, $directionText. Please stop and check your path."
+                    "Attention. The $name appears to be getting closer, $directionText.$distanceSentence Please stop and check your path."
             }
         }
 
         return when (apparentProximity) {
             "very-close-looking" -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "احتیاط! $directionText $spokenName قریب ہے۔ براہِ کرم رکیں اور آگے بڑھنے سے پہلے راستہ دیکھ لیں۔"
+                    "احتیاط! $directionText $name قریب دکھائی دے رہی ہے۔$distanceSentence براہِ کرم رکیں اور آگے بڑھنے سے پہلے راستہ دیکھ لیں۔"
                 "Pashto (Afghanistan)" ->
-                    "احتیاط، $spokenName ستاسو $directionText ډېر نږدې ښکاري. کره واټن نه دی معلوم. مهرباني وکړئ ودرېږئ او لاره وګورئ."
+                    "احتیاط، $name ستاسو $directionText ډېر نږدې ښکاري.$distanceSentence مهرباني وکړئ ودرېږئ او لاره وګورئ."
                 else ->
-                    "Caution. The $spokenName appears very close, $directionText. Its exact distance is unknown. Please stop and check the way ahead."
+                    "Caution. The $name appears very close, $directionText.$distanceSentence Please stop and check the way ahead."
             }
             "close-looking" -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "$directionText $spokenName ہے۔ یہ قریب دکھائی دے رہی ہے؛ آگے بڑھنے سے پہلے احتیاط کریں۔"
+                    "$directionText $name نظر آ رہی ہے اور نسبتاً قریب دکھائی دیتی ہے۔$distanceSentence آگے بڑھنے سے پہلے احتیاط کریں۔"
                 "Pashto (Afghanistan)" ->
-                    "$spokenName ستاسو $directionText ښکاري. داسې برېښي چې نږدې دی، خو کره واټن نه دی معلوم. مخکې له تګ څخه لاره وګورئ."
+                    "$name ستاسو $directionText ښکاري او نسبتاً نږدې برېښي.$distanceSentence مخکې له تګ څخه لاره وګورئ."
                 else ->
-                    "The $spokenName is $directionText. It appears relatively close, but its exact distance is unknown. Check the path before moving."
+                    "The $name is $directionText and appears relatively close.$distanceSentence Check the path before moving."
             }
             else -> when (language) {
                 "Urdu (Pakistan)" ->
-                    "$directionText $spokenName نظر آ رہی ہے۔ یہ نسبتاً دور دکھائی دیتی ہے۔ درست فاصلہ معلوم نہیں۔"
+                    "$directionText $name نظر آ رہی ہے۔$distanceSentence"
                 "Pashto (Afghanistan)" ->
-                    "$spokenName ستاسو $directionText ښکاري. داسې برېښي چې لږ لرې دی؛ کمره کره واټن نه شي معلومولی."
+                    "$name ستاسو $directionText ښکاري.$distanceSentence"
                 else ->
-                    "The $spokenName is visible $directionText. It appears farther away; the camera cannot measure its exact distance."
+                    "The $name is visible $directionText.$distanceSentence"
             }
         }
     }
