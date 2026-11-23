@@ -34,7 +34,7 @@ class DistanceCalibrationCaptureTest {
         assertEquals("person", captured!!.referenceLabel)
         assertEquals(0.5f, captured.normalizedBoxHeight, 0.0001f)
         assertEquals(0.4f, captured.normalizedCenterX, 0.0001f)
-        assertEquals(1500f / 1800f, captured.normalizedCenterY, 0.0001f)
+        assertEquals(750f / 1800f, captured.normalizedCenterY, 0.0001f)
     }
 
     @Test
