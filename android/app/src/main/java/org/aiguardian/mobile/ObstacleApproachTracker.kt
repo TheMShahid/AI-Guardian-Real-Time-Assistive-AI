@@ -7,6 +7,11 @@ package org.aiguardian.mobile
  * It uses the existing label + direction key and therefore remains conservative
  * about identity: overlapping same-class objects may share a key.
  */
+internal data class ObstacleSizeObservation(
+    val key: String,
+    val normalizedHeight: Float
+)
+
 internal class ObstacleApproachTracker(
     private val requiredGrowthFrames: Int = 2,
     private val growthThreshold: Float = 0.12f,
@@ -30,14 +35,12 @@ internal class ObstacleApproachTracker(
     }
 
     fun update(
-        obstacles: List<PrioritizedObstacle>,
+        obstacles: List<ObstacleSizeObservation>,
         frameId: Long,
         nowMs: Long
     ): Set<String> {
         require(nowMs >= 0L)
-        val keys = obstacles.associateBy {
-            "${it.detection.label}|${it.direction}"
-        }
+        val keys = obstacles.associateBy { it.key }
 
         if (frameId == lastFrameId) {
             return keys.keys.filterTo(linkedSetOf()) { key ->
