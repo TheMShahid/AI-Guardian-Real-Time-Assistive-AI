@@ -40,14 +40,14 @@ object DistanceSpeechFormatter {
 
         return when (language) {
             "Urdu (Pakistan)" -> if (stepText != null) {
-                "$meterText، یعنی $stepText کے فاصلے پر"
-            } else "$meterText کے فاصلے پر"
+                "$meterText، یعنی $stepText"
+            } else meterText
             "Pashto (Afghanistan)" -> if (stepText != null) {
-                "$meterText، یعنې $stepText لرې"
-            } else "$meterText لرې"
+                "$meterText، یعنې $stepText"
+            } else meterText
             else -> if (stepText != null) {
-                "$meterText away, or $stepText"
-            } else "$meterText away"
+                "$meterText, or $stepText"
+            } else meterText
         }
     }
 
