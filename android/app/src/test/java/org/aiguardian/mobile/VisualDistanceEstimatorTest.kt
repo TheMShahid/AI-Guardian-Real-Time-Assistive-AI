@@ -83,6 +83,14 @@ class VisualDistanceEstimatorTest {
     }
 
     @Test
+    fun calibrationCaptureSupportMatchesConfiguredObjectPriors() {
+        assertTrue(VisualDistanceEstimator.supportsObject("person"))
+        assertTrue(VisualDistanceEstimator.supportsObject("chair"))
+        assertTrue(VisualDistanceEstimator.supportsObject("backpack"))
+        assertFalse(VisualDistanceEstimator.supportsObject("traffic light"))
+    }
+
+    @Test
     fun invalidCalibrationInputsAreRejected() {
         assertNull(
             VisualDistanceEstimator.calibrate(
