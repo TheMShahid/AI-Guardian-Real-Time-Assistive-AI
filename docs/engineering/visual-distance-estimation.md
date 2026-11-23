@@ -1,50 +1,66 @@
 # Calibrated Visual Distance Estimation
 
-Status: experimental engineering foundation; not yet enabled in live spoken guidance.
+Status: experimental; connected to live spoken obstacle announcements after explicit user calibration. Not validated for navigation or collision avoidance.
 
 ## Why calibration is required
 
-A single RGB camera does not directly measure metric depth. Bounding-box size alone cannot tell whether a small box is a nearby backpack or a large object farther away. The estimator therefore refuses to return metres or step counts until a user has supplied a calibration.
+A single RGB camera does not directly measure metric depth. Bounding-box size alone cannot distinguish a small nearby object from a large distant object. The estimator therefore refuses to return metres or steps until a camera-specific calibration and, for steps, a measured stride length are supplied.
 
 ## Model
 
-The current prototype uses a pinhole-camera approximation:
+The prototype uses a pinhole-camera approximation:
 
 `f / H = (h / H) * Z / S`
 
 where:
 - `f / H` is focal length normalized by frame height,
-- `h / H` is the detected object's normalized box height,
-- `Z` is a manually measured reference distance,
-- `S` is the manually known physical height of the reference object.
+- `h / H` is the detected object's normalized bounding-box height,
+- `Z` is the manually measured reference distance,
+- `S` is the manually measured physical height of the reference object.
 
 For later detections:
 
 `Z_est = (f / H) * S_class / (h / H)`
 
-The implementation uses approximate class-height priors for selected COCO classes (person, chair, backpack, car, etc.). It returns a broad ±35% range, not a precise point value.
+The estimator uses approximate class-height priors for selected COCO classes and returns a broad ±35% interval. This interval is an engineering heuristic, not a statistical confidence interval.
+
+## Guided calibration workflow
+
+1. Start the live camera and keep the phone at its normal camera zoom.
+2. Ask a helper to position one supported, fully visible reference object at a measured distance from the camera.
+3. Open the camera overflow menu and select **Capture distance calibration sample**. The app selects the highest-confidence detection among classes with configured size priors and captures its normalized box height and class label. Only geometry and label are retained; no image is saved.
+4. Open Settings → Distance Estimation.
+5. Confirm the captured label. Enter the reference object's actual measured physical height and the measured camera-to-object distance. The captured normalized box ratio is shown automatically.
+6. Optionally enter a measured average stride length. Leave it blank if it has not been measured; step announcements remain disabled.
+7. Save calibration. Samples older than five minutes are rejected and must be captured again.
+
+The user must isolate one reference object during capture. If multiple supported objects are visible, the highest-confidence detection may not be the intended reference; verify the displayed class label before saving.
 
 ## Step-count conversion
 
 Step bands are calculated only when a valid user stride length (0.20–1.50 m) is supplied. The range is rounded upward to whole steps. This is a rough walking-distance conversion, not a prediction of how many steps remain before collision. Actual steps vary with gait, terrain, pace, turns and obstacle geometry.
 
-## Device and session calibration constraints
+## Device and session constraints
 
-A calibration is valid only for the camera, zoom, resolution and image pipeline used to create it. Recalibration is required after camera/zoom changes or significant pipeline changes. The Android Settings screen now accepts a reference object's known height, measured camera distance, normalized bounding-box height, and optional average stride length. Calibration and stride preferences are stored locally in SharedPreferences. The live obstacle voice pipeline uses the saved calibration to append a broad distance interval and optional step interval for supported classes. The normalized bounding-box ratio is currently entered manually; an accessible guided capture flow, live camera metadata validation and device-specific verification are still required.
+A calibration is specific to the camera, zoom, resolution and image pipeline used to create it. Recalibration is required after camera/zoom changes or significant pipeline changes. Calibration and stride preferences are stored locally in SharedPreferences. The live obstacle voice pipeline appends a broad distance interval for supported classes; step ranges are appended only when a measured stride is available.
 
 ## Safety constraints
 
-- Never speak an exact distance or exact step count from an uncalibrated RGB frame.
+- Never speak a metric distance from an uncalibrated RGB frame.
 - Unsupported object classes produce no metric estimate.
 - Bounding boxes may include background or only part of an object.
-- Typical class heights vary substantially (especially people, chairs, bags and vehicles).
-- The estimator must not be used as a collision detector or a guarantee that a route is clear.
-- Before live use, validate against measured distances at multiple ranges, lighting conditions, camera orientations and object instances on the target phone.
+- Typical class heights vary substantially, especially people, chairs, bags and vehicles.
+- The ±35% range does not capture every source of error and must not be treated as a safety guarantee.
+- Do not use the estimator as a collision detector or proof that a route is clear.
+- Validate against measured distances at multiple ranges, lighting conditions, camera orientations and object instances on the target phone.
 - Do not test while walking near roads, stairs or other hazards. Conduct stationary indoor tests with a helper.
 
 ## Implementation
 
 - `VisualDistanceEstimator.kt`: calibration, class-size priors, range estimation and optional stride conversion.
-- `VisualDistanceEstimatorTest.kt`: geometry, uncalibrated refusal, unsupported classes and invalid stride tests.\n- `DistanceCalibrationStore.kt`: local persistence for calibration and stride settings.\n- `DistanceSpeechFormatter.kt`: localized range and optional step-band formatting.\n- `DistanceSpeechFormatterTest.kt`: localized formatting and refusal to speak unavailable measurements.
-
-The next engineering increment is a screen-reader-accessible calibration flow that captures a stable reference detection, asks the user to enter its measured distance and physical height, stores the camera-specific calibration, and exposes a clearly labelled experimental distance range in the live UI.
+- `DistanceCalibrationCapture.kt`: geometry-only sample captured from a live detector result.
+- `DistanceCalibrationCaptureTest.kt`: sample normalization and invalid geometry tests.
+- `DistanceCalibrationStore.kt`: local persistence for calibration and stride settings.
+- `DistanceSpeechFormatter.kt`: localized range and optional step-band formatting.
+- `DistanceSpeechFormatterTest.kt`: localized formatting and refusal to speak unavailable measurements.
+- `SpeechLocalizerDistanceTest.kt`: calibrated and uncalibrated obstacle voice wording.
