@@ -34,6 +34,7 @@ fun SettingsScreen(
     onVoiceAnnouncementsChange: (Boolean) -> Unit,
     distanceCalibration: DistanceCalibration?,
     strideLengthMeters: Float?,
+    distanceCalibrationCapture: DistanceCalibrationCapture?,
     onSaveDistanceCalibration: (DistanceCalibration, Float?) -> Unit,
     onClearDistanceCalibration: () -> Unit,
     onBack: () -> Unit
@@ -347,6 +348,7 @@ fun SettingsScreen(
         DistanceCalibrationSettings(
             calibration = distanceCalibration,
             strideLengthMeters = strideLengthMeters,
+            capture = distanceCalibrationCapture,
             onSave = onSaveDistanceCalibration,
             onClear = onClearDistanceCalibration
         )
@@ -582,11 +584,12 @@ private fun SettingsDropdown(
 private fun DistanceCalibrationSettings(
     calibration: DistanceCalibration?,
     strideLengthMeters: Float?,
+    capture: DistanceCalibrationCapture?,
     onSave: (DistanceCalibration, Float?) -> Unit,
     onClear: () -> Unit
 ) {
-    val referenceLabel = remember(calibration) {
-        mutableStateOf(calibration?.referenceLabel ?: "person")
+    val referenceLabel = remember(calibration, capture) {
+        mutableStateOf(capture?.referenceLabel ?: calibration?.referenceLabel ?: "person")
     }
     val knownHeight = remember(calibration) {
         mutableStateOf(calibration?.referenceHeightMeters?.toString() ?: "1.70")
@@ -594,12 +597,13 @@ private fun DistanceCalibrationSettings(
     val measuredDistance = remember(calibration) {
         mutableStateOf(calibration?.referenceDistanceMeters?.toString() ?: "2.00")
     }
-    val normalizedBoxHeight = remember(calibration) {
+    val normalizedBoxHeight = remember(calibration, capture) {
         mutableStateOf(
-            calibration?.let {
-                (it.focalRatio * it.referenceHeightMeters /
-                    it.referenceDistanceMeters).toString()
-            } ?: "0.50"
+            capture?.normalizedBoxHeight?.toString()
+                ?: calibration?.let {
+                    (it.focalRatio * it.referenceHeightMeters /
+                        it.referenceDistanceMeters).toString()
+                } ?: ""
         )
     }
     val stride = remember(strideLengthMeters) {
@@ -616,24 +620,44 @@ private fun DistanceCalibrationSettings(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "For a first experimental calibration, keep the phone camera at the same zoom and resolution. Ask a helper to stand still at a measured distance. Enter the person's approximate physical height, measured camera-to-person distance, and the detected bounding-box height divided by the full camera-frame height.",
+                text = "Step 1: Keep the phone camera at its normal zoom. Ask a helper to stand still beside a reference object at a measured distance. Step 2: Open the camera menu and choose Capture distance calibration sample. Step 3: Return here and enter the object's real height and measured distance.",
                 color = Muted,
                 fontSize = 12.sp,
                 lineHeight = 18.sp
             )
 
-            CalibrationInput("Reference object label (person, chair, backpack)", referenceLabel.value) {
-                referenceLabel.value = it
+            if (capture != null) {
+                Text(
+                    text = "LIVE SAMPLE CAPTURED: ${capture.referenceLabel} · ${String.format(java.util.Locale.US, "%.3f", capture.normalizedBoxHeight)} frame ratio",
+                    color = Cyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            } else {
+                Text(
+                    text = "No live sample captured yet. Open the camera, place one supported object fully in view, then use the camera menu to capture it.",
+                    color = Warning,
+                    fontSize = 12.sp
+                )
             }
+
+            Text(
+                text = "Reference object: ${referenceLabel.value}",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
             CalibrationInput("Known object height in metres", knownHeight.value) {
                 knownHeight.value = it
             }
             CalibrationInput("Measured camera distance in metres", measuredDistance.value) {
                 measuredDistance.value = it
             }
-            CalibrationInput("Bounding-box height / frame height (0.015–1.0)", normalizedBoxHeight.value) {
-                normalizedBoxHeight.value = it
-            }
+            Text(
+                text = "Captured bounding-box / frame-height ratio: ${normalizedBoxHeight.value.ifBlank { "Not captured" }}",
+                color = if (capture != null) Cyan else Muted,
+                fontSize = 12.sp
+            )
             CalibrationInput("Your average step length in metres (optional)", stride.value) {
                 stride.value = it
             }
@@ -648,12 +672,12 @@ private fun DistanceCalibrationSettings(
                     val distance = measuredDistance.value.toFloatOrNull()
                     val boxRatio = normalizedBoxHeight.value.toFloatOrNull()
                     val strideValue = stride.value.toFloatOrNull()
-                    if (referenceLabel.value.isBlank() ||
+                    if (capture == null || referenceLabel.value.isBlank() ||
                         height == null || distance == null || boxRatio == null ||
                         (stride.value.isNotBlank() && strideValue == null) ||
                         (strideValue != null && strideValue !in 0.20f..1.50f)
                     ) {
-                        error.value = "Enter valid positive measurements. Step length must be 0.20–1.50 m."
+                        error.value = "Capture a live sample and enter valid measurements. Step length must be 0.20–1.50 m."
                         return@Button
                     }
                     val created = VisualDistanceEstimator.calibrate(
