@@ -32,6 +32,10 @@ fun SettingsScreen(
     onSpeechLanguageChange: (String) -> Unit,
     onSpeechRateChange: (Float) -> Unit,
     onVoiceAnnouncementsChange: (Boolean) -> Unit,
+    distanceCalibration: DistanceCalibration?,
+    strideLengthMeters: Float?,
+    onSaveDistanceCalibration: (DistanceCalibration, Float?) -> Unit,
+    onClearDistanceCalibration: () -> Unit,
     onBack: () -> Unit
 ) {
     Column(
@@ -334,6 +338,19 @@ fun SettingsScreen(
             }
         }
 
+        // Distance estimation calibration
+        SettingsSection(
+            title = "DISTANCE ESTIMATION",
+            subtitle = "Optional camera calibration for approximate distance and step ranges"
+        )
+
+        DistanceCalibrationSettings(
+            calibration = distanceCalibration,
+            strideLengthMeters = strideLengthMeters,
+            onSave = onSaveDistanceCalibration,
+            onClear = onClearDistanceCalibration
+        )
+
         // OCR information
         SettingsSection(
             title = "TEXT RECOGNITION",
@@ -558,4 +575,140 @@ private fun SettingsDropdown(
             }
         }
     }
+}
+
+
+@Composable
+private fun DistanceCalibrationSettings(
+    calibration: DistanceCalibration?,
+    strideLengthMeters: Float?,
+    onSave: (DistanceCalibration, Float?) -> Unit,
+    onClear: () -> Unit
+) {
+    val referenceLabel = remember(calibration) {
+        mutableStateOf(calibration?.referenceLabel ?: "person")
+    }
+    val knownHeight = remember(calibration) {
+        mutableStateOf(calibration?.referenceHeightMeters?.toString() ?: "1.70")
+    }
+    val measuredDistance = remember(calibration) {
+        mutableStateOf(calibration?.referenceDistanceMeters?.toString() ?: "2.00")
+    }
+    val normalizedBoxHeight = remember(calibration) {
+        mutableStateOf(
+            calibration?.let {
+                (it.focalRatio * it.referenceHeightMeters /
+                    it.referenceDistanceMeters).toString()
+            } ?: "0.50"
+        )
+    }
+    val stride = remember(strideLengthMeters) {
+        mutableStateOf(strideLengthMeters?.toString() ?: "0.70")
+    }
+    val error = remember { mutableStateOf<String?>(null) }
+
+    SettingsCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = if (calibration == null) "NOT CALIBRATED" else "CALIBRATION SAVED",
+                color = if (calibration == null) Warning else Cyan,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "For a first experimental calibration, keep the phone camera at the same zoom and resolution. Ask a helper to stand still at a measured distance. Enter the person's approximate physical height, measured camera-to-person distance, and the detected bounding-box height divided by the full camera-frame height.",
+                color = Muted,
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+
+            CalibrationInput("Reference object label (person, chair, backpack)", referenceLabel.value) {
+                referenceLabel.value = it
+            }
+            CalibrationInput("Known object height in metres", knownHeight.value) {
+                knownHeight.value = it
+            }
+            CalibrationInput("Measured camera distance in metres", measuredDistance.value) {
+                measuredDistance.value = it
+            }
+            CalibrationInput("Bounding-box height / frame height (0.015–1.0)", normalizedBoxHeight.value) {
+                normalizedBoxHeight.value = it
+            }
+            CalibrationInput("Your average step length in metres (optional)", stride.value) {
+                stride.value = it
+            }
+
+            if (error.value != null) {
+                Text(error.value!!, color = Warning, fontSize = 12.sp)
+            }
+
+            Button(
+                onClick = {
+                    val height = knownHeight.value.toFloatOrNull()
+                    val distance = measuredDistance.value.toFloatOrNull()
+                    val boxRatio = normalizedBoxHeight.value.toFloatOrNull()
+                    val strideValue = stride.value.toFloatOrNull()
+                    if (referenceLabel.value.isBlank() ||
+                        height == null || distance == null || boxRatio == null ||
+                        (stride.value.isNotBlank() && strideValue == null) ||
+                        (strideValue != null && strideValue !in 0.20f..1.50f)
+                    ) {
+                        error.value = "Enter valid positive measurements. Step length must be 0.20–1.50 m."
+                        return@Button
+                    }
+                    val created = VisualDistanceEstimator.calibrate(
+                        referenceLabel = referenceLabel.value,
+                        normalizedBoxHeight = boxRatio,
+                        knownHeightMeters = height,
+                        measuredDistanceMeters = distance,
+                        nowEpochMs = System.currentTimeMillis()
+                    )
+                    if (created == null) {
+                        error.value = "Calibration values are outside the supported range."
+                    } else {
+                        onSave(created, strideValue)
+                        error.value = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save distance calibration")
+            }
+
+            if (calibration != null) {
+                OutlinedButton(
+                    onClick = {
+                        onClear()
+                        error.value = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear calibration")
+                }
+            }
+
+            Text(
+                text = "Distance is an approximate range based on typical object sizes, not a depth sensor or collision warning. Step counts are approximate and depend on your gait. Recalibrate if camera zoom or resolution changes.",
+                color = Warning,
+                fontSize = 11.sp,
+                lineHeight = 17.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun CalibrationInput(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp)
+    )
 }
