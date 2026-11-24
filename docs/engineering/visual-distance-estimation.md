@@ -1,6 +1,6 @@
 # Calibrated Visual Distance Estimation
 
-Status: experimental; connected to live spoken obstacle announcements after explicit user calibration. Not validated for navigation or collision avoidance.
+Status: experimental; connected to live spoken foreground-object and obstacle announcements after explicit user calibration. Not validated for navigation or collision avoidance.
 
 ## Why calibration is required
 
@@ -43,7 +43,7 @@ Step bands are calculated only when a valid user stride length (0.20–1.50 m) i
 
 ## Device and session constraints
 
-A calibration is specific to the camera, zoom, resolution and image pipeline used to create it. Recalibration is required after camera/zoom changes or significant pipeline changes. Calibration and stride preferences are stored locally in SharedPreferences. The live obstacle voice pipeline appends a broad distance interval for supported classes; step ranges are appended only when a measured stride is available.
+A calibration is specific to the camera, zoom, resolution and image pipeline used to create it. Recalibration is required after camera/zoom changes or significant pipeline changes. Calibration and stride preferences are stored locally in SharedPreferences. The live foreground-object and obstacle voice pipelines append a broad distance interval for supported classes; step ranges are appended only when a measured stride is available.
 
 ## Safety constraints
 
