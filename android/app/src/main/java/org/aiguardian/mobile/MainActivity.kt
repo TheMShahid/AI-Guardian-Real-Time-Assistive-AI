@@ -1131,6 +1131,10 @@ LaunchedEffect(
     }
 },                      sceneAnalyzing = sceneAnalyzing,
                         sceneDescription = sceneDescription,
+                        vlmModelAvailable = vlmModelAvailable,
+                        vlmModelDownloading = vlmModelDownloading,
+                        vlmModelDownloadProgress = vlmModelDownloadProgress,
+                        onDownloadVlmModel = ::downloadVlmModel,
                         onDescribeScene = ::describeScene,
                         onStop = ::stopCamera,
                         onVoice = {
@@ -2650,6 +2654,10 @@ private fun CameraScreen(
     onDetections: (List<Detection>, Long, OutputTransform) -> Unit,
     sceneAnalyzing: Boolean,
     sceneDescription: String,
+    vlmModelAvailable: Boolean,
+    vlmModelDownloading: Boolean,
+    vlmModelDownloadProgress: Int,
+    onDownloadVlmModel: () -> Unit,
     onDescribeScene: () -> Unit,
     onStop: () -> Unit,
     onVoice: () -> Unit,
@@ -2729,7 +2737,24 @@ private fun CameraScreen(
                             }
                         )
 
-                            DropdownMenuItem(
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    when {
+                                        vlmModelDownloading -> "Downloading VLM model... $vlmModelDownloadProgress%"
+                                        vlmModelAvailable -> "VLM model ready"
+                                        else -> "Download VLM model (about 361 MB)"
+                                    }
+                                )
+                            },
+                            enabled = !vlmModelDownloading && !vlmModelAvailable,
+                            onClick = {
+                                menuExpanded = false
+                                onDownloadVlmModel()
+                            }
+                        )
+
+                        DropdownMenuItem(
                             text = {
                                 Text(
                                     if (sceneAnalyzing) {
