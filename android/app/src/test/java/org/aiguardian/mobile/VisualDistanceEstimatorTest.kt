@@ -104,6 +104,27 @@ class VisualDistanceEstimatorTest {
     }
 
     @Test
+    fun matchingReferenceClassUsesItsMeasuredPhysicalHeight() {
+        val calibration = VisualDistanceEstimator.calibrate(
+            referenceLabel = "person",
+            normalizedBoxHeight = 0.50f,
+            knownHeightMeters = 2.0f,
+            measuredDistanceMeters = 3.0f,
+            nowEpochMs = 100L
+        )!!
+
+        val estimate = VisualDistanceEstimator.estimate(
+            label = "person",
+            normalizedBoxHeight = 0.50f,
+            calibration = calibration
+        )
+
+        assertEquals(DistanceQuality.CALIBRATED_APPROXIMATE, estimate.quality)
+        assertEquals(1.95f, estimate.minimumMeters!!, 0.001f)
+        assertEquals(4.05f, estimate.maximumMeters!!, 0.001f)
+    }
+
+    @Test
     fun invalidStrideDoesNotProduceStepCount() {
         val calibration = VisualDistanceEstimator.calibrate(
             referenceLabel = "person",
