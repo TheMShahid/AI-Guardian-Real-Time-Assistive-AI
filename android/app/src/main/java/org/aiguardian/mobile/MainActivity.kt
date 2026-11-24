@@ -438,7 +438,8 @@ val voiceAssistant = remember(context) {
                 (
                     utteranceId.startsWith("guardian-spatial-announcement") ||
                     utteranceId.startsWith("guardian-urgent-obstacle") ||
-                    utteranceId.startsWith("guardian-open-sector")
+                    utteranceId.startsWith("guardian-open-sector") ||
+                    utteranceId.startsWith("guardian-object-narration")
                 )
             ) {
                 Log.w(
@@ -447,6 +448,9 @@ val voiceAssistant = remember(context) {
                 )
                 announcedSpatialItems = emptySet()
                 announcedOpenSectors = emptySet()
+                if (utteranceId.startsWith("guardian-object-narration")) {
+                    foregroundObjectTracker.reset()
+                }
             }
         }
     )
