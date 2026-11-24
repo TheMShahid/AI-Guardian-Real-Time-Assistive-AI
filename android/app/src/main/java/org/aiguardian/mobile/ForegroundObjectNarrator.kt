@@ -11,7 +11,8 @@ import kotlin.math.sqrt
 internal data class ForegroundObject(
     val label: String,
     val direction: String,
-    val score: Float
+    val score: Float,
+    val normalizedBoxHeight: Float = 0f
 )
 
 internal object ForegroundObjectSelector {
@@ -62,7 +63,8 @@ internal object ForegroundObjectSelector {
             ForegroundObject(
                 label = detection.label.trim().lowercase(),
                 direction = direction,
-                score = score
+                score = score,
+                normalizedBoxHeight = (box.bottom - box.top) / height.toFloat()
             )
         }.maxByOrNull { it.score }
     }
