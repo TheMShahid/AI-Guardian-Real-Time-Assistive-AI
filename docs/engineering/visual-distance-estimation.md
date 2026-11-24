@@ -32,7 +32,7 @@ The estimator uses approximate class-height priors for selected COCO classes and
 4. Keep the reference object stationary and fully visible until the voice confirmation. Capture automatically stops after 12 seconds if a stable sample cannot be obtained; the app announces a timeout and asks the user to retry. If the object moves, changes apparent size substantially, disappears for too long, or a different class takes over, the sample window restarts.
 5. Open Settings → Distance Estimation.
 6. Confirm the captured label. Enter the reference object's actual measured physical height and the measured camera-to-object distance. The captured normalized box ratio is shown automatically.
-7. Optionally enter a measured average stride length. Leave it blank if it has not been measured; step announcements remain disabled.
+7. Optionally calibrate walking stride in the same Settings card. In a safe, flat indoor area, have a helper measure a known walking distance and count the user's normal steps over that distance. Enter both values and use **Calculate my average step length**; the app computes distance / step count and accepts only a result between 0.20 m and 1.50 m. The calculated value remains editable. Leave it blank if it has not been measured; step announcements remain disabled.
 8. Save calibration. Samples older than five minutes are rejected and must be captured again.
 
 The user must isolate one reference object during capture. If multiple supported objects are visible, the highest-confidence detection may not be the intended reference; verify the displayed class label before saving.
