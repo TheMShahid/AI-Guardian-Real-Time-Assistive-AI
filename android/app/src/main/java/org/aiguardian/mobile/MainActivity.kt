@@ -1032,36 +1032,48 @@ LaunchedEffect(
     analysisReady = true
 
     if (distanceCalibrationCaptureInProgress) {
-        val candidate = found
-            .filter { VisualDistanceEstimator.supportsObject(it.label) }
-            .maxByOrNull { it.confidence }
-
-        val frameSample = candidate?.let { detection ->
-            DistanceCalibrationCapture.fromDetection(
-                label = detection.label,
-                boxLeftPixels = detection.boundingBox.left,
-                boxTopPixels = detection.boundingBox.top,
-                boxRightPixels = detection.boundingBox.right,
-                boxBottomPixels = detection.boundingBox.bottom,
-                frameWidthPixels = detection.frameWidth,
-                frameHeightPixels = detection.frameHeight,
-                capturedAtEpochMs = System.currentTimeMillis()
-            )
-        }
-
-        val stableCapture = frameSample?.let {
-            distanceCalibrationCaptureTracker.add(it)
-        }
-
-        if (stableCapture != null) {
-            distanceCalibrationCapture = stableCapture
+        val nowEpochMs = System.currentTimeMillis()
+        if (distanceCalibrationCaptureTracker.hasTimedOut(nowEpochMs)) {
             distanceCalibrationCaptureInProgress = false
             if (voiceAnnouncements) {
                 voiceAssistant.speak(
-                    "Stable calibration sample captured for ${stableCapture.referenceLabel}. Open Settings and enter the measured object height and camera distance.",
+                    "Distance calibration timed out. Keep one supported object fully visible and still, then try again.",
                     flushQueue = true,
-                    utteranceId = "distance-calibration-captured"
+                    utteranceId = "distance-calibration-timeout"
                 )
+            }
+        } else {
+            val candidate = found
+                .filter { VisualDistanceEstimator.supportsObject(it.label) }
+                .maxByOrNull { it.confidence }
+
+            val frameSample = candidate?.let { detection ->
+                DistanceCalibrationCapture.fromDetection(
+                    label = detection.label,
+                    boxLeftPixels = detection.boundingBox.left,
+                    boxTopPixels = detection.boundingBox.top,
+                    boxRightPixels = detection.boundingBox.right,
+                    boxBottomPixels = detection.boundingBox.bottom,
+                    frameWidthPixels = detection.frameWidth,
+                    frameHeightPixels = detection.frameHeight,
+                    capturedAtEpochMs = nowEpochMs
+                )
+            }
+
+            val stableCapture = frameSample?.let {
+                distanceCalibrationCaptureTracker.add(it)
+            }
+
+            if (stableCapture != null) {
+                distanceCalibrationCapture = stableCapture
+                distanceCalibrationCaptureInProgress = false
+                if (voiceAnnouncements) {
+                    voiceAssistant.speak(
+                        "Stable calibration sample captured for ${stableCapture.referenceLabel}. Open Settings and enter the measured object height and camera distance.",
+                        flushQueue = true,
+                        utteranceId = "distance-calibration-captured"
+                    )
+                }
             }
         }
     }
@@ -1099,7 +1111,7 @@ LaunchedEffect(
                         },
                         onCaptureCalibrationSample = {
                             distanceCalibrationCapture = null
-                            distanceCalibrationCaptureTracker.start()
+                            distanceCalibrationCaptureTracker.start(System.currentTimeMillis())
                             distanceCalibrationCaptureInProgress = true
                             if (voiceAnnouncements) {
                                 voiceAssistant.speak(
