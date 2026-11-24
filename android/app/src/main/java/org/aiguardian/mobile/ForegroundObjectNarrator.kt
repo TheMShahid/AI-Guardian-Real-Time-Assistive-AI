@@ -64,7 +64,7 @@ internal object ForegroundObjectSelector {
                 label = detection.label.trim().lowercase(),
                 direction = direction,
                 score = score,
-                normalizedBoxHeight = (box.bottom - box.top) / height.toFloat()
+                normalizedBoxHeight = ((box.bottom - box.top) / height.toFloat()).coerceIn(0f, 1f)
             )
         }.maxByOrNull { it.score }
     }
