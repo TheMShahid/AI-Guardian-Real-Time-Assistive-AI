@@ -42,10 +42,11 @@ internal class ForegroundDistanceUpdateTracker(
         val materiallyCloser = current.centerMeters?.let {
             currentCenter <= it * closerDistanceRatio
         } == true
-        val stepsReduced = estimate.minimumSteps != null &&
-            current.minimumSteps?.let {
-                it - estimate.minimumSteps >= 2
-            } == true
+        val currentMinimumSteps = estimate.minimumSteps
+        val previousMinimumSteps = current.minimumSteps
+        val stepsReduced = currentMinimumSteps != null &&
+            previousMinimumSteps != null &&
+            previousMinimumSteps - currentMinimumSteps >= 2
 
         return materiallyCloser || stepsReduced
     }
