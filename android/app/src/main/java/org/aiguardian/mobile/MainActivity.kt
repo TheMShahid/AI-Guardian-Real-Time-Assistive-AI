@@ -890,6 +890,16 @@ LaunchedEffect(
         nowMs = nowElapsedMs
     )
 
+    val obstacleDistanceEstimates = prioritizedObstacles.associate { obstacle ->
+        val key = "${obstacle.detection.label}|${obstacle.direction}"
+        key to VisualDistanceEstimator.estimate(
+            label = obstacle.detection.label,
+            normalizedBoxHeight = obstacle.normalizedHeight,
+            calibration = distanceCalibration,
+            strideLengthMeters = strideLengthMeters
+        )
+    }
+
     val stableItems = prioritizedObstacles.filter { obstacle ->
         val key = "${obstacle.detection.label}|${obstacle.direction}"
         key in stableKeys || obstacle.apparentProximity == "very-close-looking"
@@ -954,7 +964,12 @@ LaunchedEffect(
             key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
             else -> 0
         }
-        obstacleAnnouncementMemory.shouldAnnounce(key, severity, nowElapsedMs)
+        obstacleAnnouncementMemory.shouldAnnounce(
+            key = key,
+            severity = severity,
+            nowMs = nowElapsedMs,
+            estimate = obstacleDistanceEstimates[key]
+        )
     }
 
     val urgentItems = newItems.filter {
@@ -993,7 +1008,9 @@ LaunchedEffect(
                 "${obstacle.detection.label}|${obstacle.direction}" in approachingKeys
             ),
             distanceText = DistanceSpeechFormatter.format(
-                estimate = VisualDistanceEstimator.estimate(
+                estimate = obstacleDistanceEstimates[
+                    "${obstacle.detection.label}|${obstacle.direction}"
+                ] ?: VisualDistanceEstimator.estimate(
                     label = obstacle.detection.label,
                     normalizedBoxHeight = obstacle.normalizedHeight,
                     calibration = distanceCalibration,
@@ -1033,7 +1050,12 @@ LaunchedEffect(
                 key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
                 else -> 0
             }
-            obstacleAnnouncementMemory.markAnnounced(key, severity, nowElapsedMs)
+            obstacleAnnouncementMemory.markAnnounced(
+                key = key,
+                severity = severity,
+                nowMs = nowElapsedMs,
+                estimate = obstacleDistanceEstimates[key]
+            )
         }
         if (newOpenSector != null) {
             announcedOpenSectors = announcedOpenSectors + newOpenSector
