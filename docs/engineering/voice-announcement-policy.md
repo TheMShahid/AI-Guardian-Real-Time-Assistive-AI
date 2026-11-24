@@ -20,6 +20,8 @@ The current detector does not provide persistent tracking IDs. The policy theref
 - Foreground narration: two consecutive observations; re-announce the same label/direction only after it has been absent for at least five seconds.
 - Obstacle narration: no repeat at the same severity while continuously detected; re-arm after five seconds of absence.
 - Severity escalation: one higher-severity update is eligible after a 1.5-second escalation cooldown.
+- With valid calibration, a distance update is eligible only after the estimated range centre moves at least 30% closer or the lower step bound drops by at least two steps; the same cooldown applies.
+- Small distance fluctuations do not trigger speech.
 - Old visual-event memory is pruned after 60 seconds.
 - Existing global speech cooldown and urgent-warning behavior remain in place.
 
