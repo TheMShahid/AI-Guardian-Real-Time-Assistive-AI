@@ -230,6 +230,9 @@ private fun GuardianHome(
     val vlmSceneAnalyzer = remember(context.applicationContext) {
         VlmSceneAnalyzer(context.applicationContext)
     }
+    val vlmModelManager = remember(context.applicationContext) {
+        VlmModelManager(context.applicationContext)
+    }
 
     DisposableEffect(vlmSceneAnalyzer) {
         onDispose {
@@ -329,6 +332,9 @@ private fun GuardianHome(
         // On-demand VLM scene understanding state.
     var sceneAnalyzing by remember { mutableStateOf(false) }
     var sceneDescription by remember { mutableStateOf("") }
+    var vlmModelAvailable by remember { mutableStateOf(false) }
+    var vlmModelDownloading by remember { mutableStateOf(false) }
+    var vlmModelDownloadProgress by remember { mutableIntStateOf(0) }
 
     // Incremented whenever the camera session stops.
     // Prevents an old inference result from being published.
@@ -591,8 +597,42 @@ val voiceAssistant = remember(context) {
     cameraError = null
 }
 
+    LaunchedEffect(vlmModelManager) {
+        vlmModelAvailable = withContext(Dispatchers.IO) {
+            vlmModelManager.isModelAvailable()
+        }
+    }
+
+    fun downloadVlmModel() {
+        if (vlmModelDownloading || vlmModelAvailable) return
+        vlmModelDownloading = true
+        vlmModelDownloadProgress = 0
+        sceneDescription = "Downloading the on-device scene understanding model (about 361 MB)."
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    vlmModelManager.downloadModel { progress ->
+                        scope.launch(Dispatchers.Main) {
+                            vlmModelDownloadProgress = progress
+                        }
+                    }
+                }
+                vlmModelAvailable = true
+                sceneDescription = "Scene understanding model is ready. Start the camera and choose Describe scene."
+            } catch (error: Exception) {
+                sceneDescription = "VLM model download failed: " + (error.message ?: "Unknown error")
+            } finally {
+                vlmModelDownloading = false
+            }
+        }
+    }
+
     fun describeScene() {
     if (!cameraRunning || sceneAnalyzing) return
+    if (!vlmModelAvailable) {
+        sceneDescription = "Download the on-device scene understanding model first. It is about 361 MB."
+        return
+    }
 
     val snapshot = captureCameraSnapshot()
 
