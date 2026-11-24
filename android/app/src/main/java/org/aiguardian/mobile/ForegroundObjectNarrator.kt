@@ -70,8 +70,9 @@ internal object ForegroundObjectSelector {
 
 /**
  * Requires consecutive observations and suppresses repeat narration for the same
- * label/direction while it remains in view. A new announcement is allowed only
- * after the object has been absent for a meaningful interval.
+ * label while it remains in view, even if its estimated direction jitters. A new
+ * announcement is allowed only after the label has been absent for a meaningful
+ * interval.
  *
  * This is a visual-event key, not a physical object identity: a detector without
  * tracking IDs cannot distinguish two identical objects in the same image sector.
@@ -105,7 +106,7 @@ internal class ForegroundObjectAnnouncementTracker(
             return null
         }
 
-        val key = key(candidate.label, candidate.direction)
+        val key = key(candidate.label)
         val previousSeenAt = lastSeenAtMs[key]
         if (previousSeenAt != null && nowMs - previousSeenAt >= reannounceAfterAbsenceMs) {
             announcedKeys.remove(key)
@@ -130,9 +131,9 @@ internal class ForegroundObjectAnnouncementTracker(
         }
     }
 
-    fun markAnnounced(label: String, direction: String, nowMs: Long) {
+    fun markAnnounced(label: String, nowMs: Long) {
         require(nowMs >= 0L)
-        val key = key(label, direction)
+        val key = key(label)
         announcedKeys += key
         lastSeenAtMs[key] = nowMs
     }
@@ -155,6 +156,5 @@ internal class ForegroundObjectAnnouncementTracker(
         }
     }
 
-    private fun key(label: String, direction: String) =
-        "${label.trim().lowercase()}|${direction.trim().lowercase()}"
+    private fun key(label: String) = label.trim().lowercase()
 }
