@@ -73,4 +73,68 @@ class ObstacleAnnouncementMemoryTest {
 
         assertTrue(memory.shouldAnnounce("chair|ahead", severity = 0, nowMs = 200L))
     }
+    @Test
+    fun materialDistanceReductionCanTriggerOneUsefulUpdate() {
+        val memory = ObstacleAnnouncementMemory()
+        val farther = VisualDistanceEstimate(
+            minimumMeters = 2.0f,
+            maximumMeters = 3.0f,
+            minimumSteps = 3,
+            maximumSteps = 5,
+            quality = DistanceQuality.CALIBRATED_APPROXIMATE
+        )
+        val closer = VisualDistanceEstimate(
+            minimumMeters = 1.0f,
+            maximumMeters = 1.5f,
+            minimumSteps = 2,
+            maximumSteps = 3,
+            quality = DistanceQuality.CALIBRATED_APPROXIMATE
+        )
+
+        memory.updateSeen(setOf("chair|ahead"), nowMs = 100L)
+        memory.markAnnounced("chair|ahead", severity = 0, nowMs = 100L, estimate = farther)
+        memory.updateSeen(setOf("chair|ahead"), nowMs = 2_000L)
+
+        assertTrue(
+            memory.shouldAnnounce(
+                "chair|ahead",
+                severity = 0,
+                nowMs = 2_000L,
+                estimate = closer
+            )
+        )
+    }
+
+    @Test
+    fun smallDistanceFluctuationDoesNotCauseRepeatAnnouncement() {
+        val memory = ObstacleAnnouncementMemory()
+        val farther = VisualDistanceEstimate(
+            minimumMeters = 2.0f,
+            maximumMeters = 3.0f,
+            minimumSteps = 3,
+            maximumSteps = 5,
+            quality = DistanceQuality.CALIBRATED_APPROXIMATE
+        )
+        val slightlyCloser = VisualDistanceEstimate(
+            minimumMeters = 1.7f,
+            maximumMeters = 2.5f,
+            minimumSteps = 3,
+            maximumSteps = 4,
+            quality = DistanceQuality.CALIBRATED_APPROXIMATE
+        )
+
+        memory.updateSeen(setOf("chair|ahead"), nowMs = 100L)
+        memory.markAnnounced("chair|ahead", severity = 0, nowMs = 100L, estimate = farther)
+        memory.updateSeen(setOf("chair|ahead"), nowMs = 2_000L)
+
+        assertFalse(
+            memory.shouldAnnounce(
+                "chair|ahead",
+                severity = 0,
+                nowMs = 2_000L,
+                estimate = slightlyCloser
+            )
+        )
+    }
+
 }
