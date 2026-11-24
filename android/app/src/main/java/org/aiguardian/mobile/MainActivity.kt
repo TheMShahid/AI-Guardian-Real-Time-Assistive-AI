@@ -353,6 +353,7 @@ var sceneInferenceStarted by remember {
     val obstacleApproachTracker = remember { ObstacleApproachTracker() }
     val obstacleAnnouncementMemory = remember { ObstacleAnnouncementMemory() }
     val foregroundObjectTracker = remember { ForegroundObjectAnnouncementTracker() }
+    val cameraStartupObservationGate = remember { CameraStartupObservationGate() }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
 }
@@ -506,6 +507,11 @@ val voiceAssistant = remember(context) {
 
     LaunchedEffect(cameraRunning) {
     if (cameraRunning) {
+        cameraStartupObservationGate.reset(SystemClock.elapsedRealtime())
+        obstacleStabilityTracker.reset()
+        obstacleApproachTracker.reset()
+        foregroundObjectTracker.reset()
+        obstacleAnnouncementMemory.reset()
         sessionStartedAt = System.currentTimeMillis()
         sessionPeakCounts = emptyMap()
     } else {
@@ -867,12 +873,18 @@ LaunchedEffect(
 ) {
     if (!cameraRunning) return@LaunchedEffect
 
+    val nowElapsedMs = SystemClock.elapsedRealtime()
+
+    // Ignore transient startup detections until the camera has supplied a stable
+    // observation window. This prevents immediate, unreliable first-frame speech.
+    if (!cameraStartupObservationGate.observe(detectionFrameSequence, nowElapsedMs)) {
+        return@LaunchedEffect
+    }
+
     val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
     val currentKeys = prioritizedObstacles.map { obstacle ->
         "${obstacle.detection.label}|${obstacle.direction}"
     }.toSet()
-
-    val nowElapsedMs = SystemClock.elapsedRealtime()
     obstacleAnnouncementMemory.updateSeen(currentKeys, nowElapsedMs)
     val stableKeys = obstacleStabilityTracker.update(
         currentKeys = currentKeys,
@@ -923,7 +935,7 @@ LaunchedEffect(
         ttsReady &&
         foregroundObject != null &&
         prioritizedObstacles.none { it.detection.label == foregroundObject.label } &&
-        !voiceAssistant.isSpeaking()
+        !distanceCalibrationCaptureInProgress
     ) {
         val accepted = voiceAssistant.speak(
             SpeechLocalizer.localize(
@@ -931,6 +943,7 @@ LaunchedEffect(
                 direction = foregroundObject.direction,
                 language = speechLanguage
             ),
+            // A newly stable foreground object supersedes stale narration.
             flushQueue = true,
             utteranceId = "guardian-object-narration"
         )
@@ -944,17 +957,10 @@ LaunchedEffect(
         }
     }
 
-    val openSectors = PathAwareObstacleAnalyzer
-        .sectorsWithoutRecognizedObstacles(detections)
-        .toSet()
-    announcedOpenSectors = announcedOpenSectors.intersect(openSectors)
-
     if (!ttsReady) return@LaunchedEffect
 
-    // Do not queue outdated object descriptions behind speech already playing.
-    // The current object finishes first; a still-visible new object can be
-    // announced on a later camera frame.
-    if (voiceAssistant.isSpeaking()) return@LaunchedEffect
+    // A newly stable object/obstacle is more relevant than the previous narration.
+    // The next QUEUE_FLUSH request below interrupts the stale spoken item.
 
     val newItems = stableItems.filter { obstacle ->
         val key = "${obstacle.detection.label}|${obstacle.direction}"
@@ -978,15 +984,9 @@ LaunchedEffect(
     val currentTime = System.currentTimeMillis()
     val canSpeakRoutineUpdate = currentTime - lastAnnouncementTime >= 3000L
 
-    val newOpenSector = if (newItems.isEmpty() && canSpeakRoutineUpdate) {
-        listOf("ahead", "left", "right").firstOrNull { sector ->
-            sector in openSectors && sector !in announcedOpenSectors
-        }
-    } else {
-        null
-    }
-
-    if (newItems.isEmpty() && newOpenSector == null) {
+    // Silence is intentional when no reliable obstacle/object event is present.
+    // An unobserved sector is not evidence that the route is clear or safe.
+    if (newItems.isEmpty()) {
         return@LaunchedEffect
     }
 
@@ -1020,13 +1020,6 @@ LaunchedEffect(
         )
     }
 
-    if (newOpenSector != null) {
-        spokenParts += SpeechLocalizer.localizeUnobservedSector(
-            sector = newOpenSector,
-            language = speechLanguage
-        )
-    }
-
     val accepted = voiceAssistant.speak(
         spokenParts.joinToString(" "),
         // Playback-idle check above ensures no active instruction is interrupted.
@@ -1034,10 +1027,8 @@ LaunchedEffect(
         flushQueue = true,
         utteranceId = if (urgentItems.isNotEmpty()) {
             "guardian-urgent-obstacle"
-        } else if (newItems.isNotEmpty()) {
-            "guardian-spatial-announcement"
         } else {
-            "guardian-open-sector"
+            "guardian-spatial-announcement"
         }
     )
 
@@ -1055,9 +1046,6 @@ LaunchedEffect(
                 nowMs = nowElapsedMs,
                 estimate = obstacleDistanceEstimates[key]
             )
-        }
-        if (newOpenSector != null) {
-            announcedOpenSectors = announcedOpenSectors + newOpenSector
         }
         lastAnnouncementTime = currentTime
     } else {
