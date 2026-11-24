@@ -23,7 +23,9 @@ The current detector does not provide persistent tracking IDs. General foregroun
 - Foreground narration: two consecutive observations; re-announce the same label only after it has been absent for at least five seconds, regardless of small direction changes.
 - Camera startup: wait for at least five distinct detector frames and 1.5 seconds after session start before any live object/obstacle narration.
 - New focus: a newly stable foreground object or obstacle can interrupt the previous lower-priority utterance; confirmed obstacle events take priority over general object narration.
-- Empty view: remain silent. Missing detections are not evidence of a clear or safe path.
+- Empty view: after four distinct consecutive empty detector frames, speak a neutral "no supported object detected in the current camera view" status. Repeat at most every 15 seconds while the view remains empty; reset immediately when detections return. This is not a claim that the route is clear or safe.
+- Empty-view feedback is suppressed while distance calibration capture is active and never flushes an obstacle warning.
+- Foreground distance updates: after the first object announcement, permit another update only when a calibrated range centre is at least 30% closer or the lower step bound improves by at least two steps, with a two-second minimum interval. The update replaces stale foreground narration but never takes priority over a newly confirmed obstacle.
 - Obstacle narration: no repeat at the same severity while continuously detected; re-arm after five seconds of absence.
 - Severity escalation: one higher-severity update is eligible after a 1.5-second escalation cooldown.
 - With valid calibration, a distance update is eligible only after the estimated range centre moves at least 30% closer or the lower step bound drops by at least two steps; the same cooldown applies.
