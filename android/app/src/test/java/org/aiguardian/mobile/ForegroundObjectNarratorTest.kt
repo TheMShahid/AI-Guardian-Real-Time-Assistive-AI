@@ -100,7 +100,7 @@ class ForegroundObjectNarratorTest {
         val stable = tracker.observe(candidate, nowMs = 100L)
         assertNotNull(stable)
 
-        tracker.markAnnounced(chair, nowMs = 100L)
+        tracker.markAnnounced(candidate, nowMs = 100L)
         assertNull(tracker.observe(candidate, nowMs = 200L))
         assertNull(tracker.observe(candidate, nowMs = 300L))
     }
@@ -141,7 +141,7 @@ class ForegroundObjectNarratorTest {
 
         tracker.observe(leftChair, nowMs = 0L)
         assertNotNull(tracker.observe(leftChair, nowMs = 100L))
-        tracker.markAnnounced(chair, nowMs = 100L)
+        tracker.markAnnounced(leftChair, nowMs = 100L)
 
         assertNull(tracker.observe(rightChair, nowMs = 200L))
         assertNull(tracker.observe(rightChair, nowMs = 300L))
@@ -175,6 +175,31 @@ class ForegroundObjectNarratorTest {
 
         assertNull(tracker.observe(bottle, nowMs = 200L))
         assertEquals("bottle", tracker.observe(bottle, nowMs = 300L)?.label)
+    }
+
+    @Test
+    fun sameClassAtANewImagePositionIsTreatedAsNewVisualFocus() {
+        val tracker = ForegroundObjectAnnouncementTracker()
+        val firstChair = ForegroundObject(
+            label = "chair",
+            direction = "ahead",
+            score = 0.8f,
+            normalizedBoxHeight = 0.35f,
+            centerXRatio = 0.35f,
+            centerYRatio = 0.55f,
+            normalizedBoxWidth = 0.25f
+        )
+        val secondChair = firstChair.copy(
+            direction = "right",
+            centerXRatio = 0.82f
+        )
+
+        tracker.observe(firstChair, nowMs = 0L)
+        assertNotNull(tracker.observe(firstChair, nowMs = 100L))
+        tracker.markAnnounced(firstChair, nowMs = 100L)
+
+        assertNull(tracker.observe(secondChair, nowMs = 200L))
+        assertNotNull(tracker.observe(secondChair, nowMs = 300L))
     }
 
 }
