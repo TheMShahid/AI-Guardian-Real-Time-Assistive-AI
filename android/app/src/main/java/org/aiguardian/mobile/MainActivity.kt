@@ -949,7 +949,7 @@ LaunchedEffect(
         )
         if (accepted) {
             foregroundObjectTracker.markAnnounced(
-                label = foregroundObject.label,
+                candidate = foregroundObject,
                 nowMs = nowElapsedMs
             )
             return@LaunchedEffect
