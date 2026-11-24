@@ -16,7 +16,7 @@ Status: implemented as a conservative duplicate-suppression policy for detector 
 
 ## Event identity and limitations
 
-The current detector does not provide persistent tracking IDs. General foreground narration uses the normalized detector label so minor direction jitter does not repeat the same class announcement. Walking-obstacle alerts use the normalized label plus coarse image direction, such as `chair|front-center`. Neither identity can reliably distinguish two identical physical objects. A future object-tracking component should replace these coarse keys with persistent track IDs.
+The current detector does not provide persistent tracking IDs. General foreground narration combines the normalized label with a visual-focus heuristic based on normalized bounding-box centre and scale. Small shifts are treated as the same focus; a material position/scale change can make a second object of the same class eligible after two observations. Walking-obstacle alerts use the normalized label plus coarse image direction, such as `chair|front-center`. These are visual-event heuristics, not guaranteed physical identities; two identical objects in nearly the same image position may still be indistinguishable. A future object-tracking component should replace these coarse keys with persistent track IDs.
 
 ## Current timing policy
 
