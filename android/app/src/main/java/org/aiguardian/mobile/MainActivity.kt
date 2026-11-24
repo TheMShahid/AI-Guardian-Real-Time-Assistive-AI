@@ -293,9 +293,6 @@ private fun GuardianHome(
     }
 
 
-    var lastAnnouncementTime by remember {
-        mutableLongStateOf(0L)
-    }
 
     var cameraRunning by remember { mutableStateOf(false) }
     var cameraError by remember { mutableStateOf<String?>(null) }
@@ -927,6 +924,7 @@ LaunchedEffect(
     if (
         ttsReady &&
         foregroundObject != null &&
+        stableItems.isEmpty() &&
         prioritizedObstacles.none { it.detection.label == foregroundObject.label } &&
         !distanceCalibrationCaptureInProgress
     ) {
@@ -954,7 +952,6 @@ LaunchedEffect(
                 label = foregroundObject.label,
                 nowMs = nowElapsedMs
             )
-            lastAnnouncementTime = System.currentTimeMillis()
             return@LaunchedEffect
         }
     }
@@ -983,7 +980,6 @@ LaunchedEffect(
         it.apparentProximity == "very-close-looking"
     }
 
-    val currentTime = System.currentTimeMillis()
 
     // Silence is intentional when no reliable obstacle/object event is present.
     // An unobserved sector is not evidence that the route is clear or safe.
@@ -1045,7 +1041,6 @@ LaunchedEffect(
                 estimate = obstacleDistanceEstimates[key]
             )
         }
-        lastAnnouncementTime = currentTime
     } else {
         Log.w(
             "GuardianVoice",
