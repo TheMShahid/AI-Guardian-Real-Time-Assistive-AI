@@ -30,7 +30,7 @@ internal object ForegroundObjectSelector {
                 width <= 0 || height <= 0 ||
                 !box.left.isFinite() || !box.top.isFinite() ||
                 !box.right.isFinite() || !box.bottom.isFinite() ||
-                box.width() <= 0f || box.height() <= 0f
+                box.right <= box.left || box.bottom <= box.top
             ) {
                 return@mapNotNull null
             }
@@ -38,8 +38,8 @@ internal object ForegroundObjectSelector {
             val centerX = ((box.left + box.right) / 2f / width).coerceIn(0f, 1f)
             val centerY = ((box.top + box.bottom) / 2f / height).coerceIn(0f, 1f)
             val areaRatio = (
-                box.width().coerceAtMost(width.toFloat()) *
-                    box.height().coerceAtMost(height.toFloat()) /
+                (box.right - box.left).coerceAtMost(width.toFloat()) *
+                    (box.bottom - box.top).coerceAtMost(height.toFloat()) /
                     (width.toFloat() * height.toFloat())
                 ).coerceIn(0f, 1f)
 
