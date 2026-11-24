@@ -163,6 +163,10 @@ internal class VoiceAssistant(
         }
 
         val queueMode = if (flushQueue) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+        if (flushQueue) {
+            // Any callback from the replaced utterance is now stale.
+            latestUtteranceId = null
+        }
         val requestId = (utteranceId ?: "guardian-utterance") +
             "-" + utteranceCounter.incrementAndGet()
         val result = currentEngine.speak(message, queueMode, null, requestId)
