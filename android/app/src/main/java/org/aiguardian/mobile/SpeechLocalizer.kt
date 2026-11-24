@@ -78,9 +78,14 @@ object SpeechLocalizer {
         }
     }
 
-    fun localize(label: String, direction: String, language: String): String {
+    fun localize(
+        label: String,
+        direction: String,
+        language: String,
+        distanceText: String? = null
+    ): String {
         val normalizedLabel = label.trim().lowercase()
-        return when (language) {
+        val base = when (language) {
             "Urdu (Pakistan)" -> {
                 val name = urduLabels[normalizedLabel] ?: label
                 "${directionPhrase(direction, language)} $name موجود ہے۔"
@@ -91,6 +96,14 @@ object SpeechLocalizer {
             }
             else -> "There is a $label ${directionPhrase(direction, language)}."
         }
+        if (distanceText.isNullOrBlank()) return base
+
+        val distanceSentence = when (language) {
+            "Urdu (Pakistan)" -> " اندازاً فاصلہ $distanceText ہے۔"
+            "Pashto (Afghanistan)" -> " اټکلی واټن $distanceText دی."
+            else -> " Estimated distance: $distanceText."
+        }
+        return base + distanceSentence
     }
 
     fun localizeObstacle(
