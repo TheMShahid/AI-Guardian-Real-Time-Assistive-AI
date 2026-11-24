@@ -297,9 +297,6 @@ private fun GuardianHome(
         mutableLongStateOf(0L)
     }
 
-    var announcedSpatialItems by remember {
-    mutableStateOf<Set<String>>(emptySet())
-}
     var announcedOpenSectors by remember {
         mutableStateOf<Set<String>>(emptySet())
     }
@@ -354,8 +351,8 @@ var sceneInferenceStarted by remember {
     var detectionFrameSequence by remember { mutableLongStateOf(0L) }
     val obstacleStabilityTracker = remember { ObstacleStabilityTracker() }
     val obstacleApproachTracker = remember { ObstacleApproachTracker() }
+    val obstacleAnnouncementMemory = remember { ObstacleAnnouncementMemory() }
     val foregroundObjectTracker = remember { ForegroundObjectAnnouncementTracker() }
-    var announcedApproachItems by remember { mutableStateOf<Set<String>>(emptySet()) }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
 }
@@ -452,7 +449,7 @@ val voiceAssistant = remember(context) {
                     "GuardianVoice",
                     "Obstacle announcement playback failed; allowing retry"
                 )
-                announcedSpatialItems = emptySet()
+                obstacleAnnouncementMemory.reset()
                 announcedOpenSectors = emptySet()
                 if (utteranceId.startsWith("guardian-object-narration")) {
                     foregroundObjectTracker.reset()
@@ -570,8 +567,7 @@ val voiceAssistant = remember(context) {
     obstacleStabilityTracker.reset()
     obstacleApproachTracker.reset()
     foregroundObjectTracker.reset()
-    announcedApproachItems = emptySet()
-    announcedSpatialItems = emptySet()
+    obstacleAnnouncementMemory.reset()
     announcedOpenSectors = emptySet()
     detectionFrameSequence++
 
@@ -877,6 +873,7 @@ LaunchedEffect(
     }.toSet()
 
     val nowElapsedMs = SystemClock.elapsedRealtime()
+    obstacleAnnouncementMemory.updateSeen(currentKeys, nowElapsedMs)
     val stableKeys = obstacleStabilityTracker.update(
         currentKeys = currentKeys,
         frameId = detectionFrameSequence,
@@ -899,19 +896,16 @@ LaunchedEffect(
     }
 
     val foregroundObject = foregroundObjectTracker.observe(
-        ForegroundObjectSelector.select(detections)
+        ForegroundObjectSelector.select(detections),
+        nowMs = nowElapsedMs
     )
 
     if (!voiceAnnouncements) {
         foregroundObjectTracker.reset()
-        announcedSpatialItems = emptySet()
-        announcedApproachItems = emptySet()
+        obstacleAnnouncementMemory.reset()
         announcedOpenSectors = emptySet()
         return@LaunchedEffect
     }
-
-    announcedSpatialItems = announcedSpatialItems.intersect(currentKeys)
-    announcedApproachItems = announcedApproachItems.intersect(currentKeys)
 
     // General scene narration is independent of the lower walking-corridor
     // obstacle filter. Safety-relevant objects remain handled by the alert path.
@@ -931,7 +925,11 @@ LaunchedEffect(
             utteranceId = "guardian-object-narration"
         )
         if (accepted) {
-            foregroundObjectTracker.markAnnounced(foregroundObject.label)
+            foregroundObjectTracker.markAnnounced(
+                label = foregroundObject.label,
+                direction = foregroundObject.direction,
+                nowMs = nowElapsedMs
+            )
             lastAnnouncementTime = System.currentTimeMillis()
             return@LaunchedEffect
         }
@@ -951,8 +949,12 @@ LaunchedEffect(
 
     val newItems = stableItems.filter { obstacle ->
         val key = "${obstacle.detection.label}|${obstacle.direction}"
-        key !in announcedSpatialItems ||
-            (key in approachingKeys && key !in announcedApproachItems)
+        val severity = when {
+            obstacle.apparentProximity == "very-close-looking" -> 2
+            key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
+            else -> 0
+        }
+        obstacleAnnouncementMemory.shouldAnnounce(key, severity, nowElapsedMs)
     }
 
     val urgentItems = newItems.filter {
@@ -988,8 +990,7 @@ LaunchedEffect(
             apparentProximity = obstacle.apparentProximity,
             language = speechLanguage,
             appearsToApproach = (
-                "${obstacle.detection.label}|${obstacle.direction}" in approachingKeys &&
-                    "${obstacle.detection.label}|${obstacle.direction}" !in announcedApproachItems
+                "${obstacle.detection.label}|${obstacle.direction}" in approachingKeys
             ),
             distanceText = DistanceSpeechFormatter.format(
                 estimate = VisualDistanceEstimator.estimate(
@@ -1025,12 +1026,14 @@ LaunchedEffect(
     )
 
     if (accepted) {
-        announcedSpatialItems = announcedSpatialItems + newItems.map { obstacle ->
-            "${obstacle.detection.label}|${obstacle.direction}"
-        }
-        announcedApproachItems = announcedApproachItems + newItems.mapNotNull { obstacle ->
+        newItems.forEach { obstacle ->
             val key = "${obstacle.detection.label}|${obstacle.direction}"
-            key.takeIf { it in approachingKeys }
+            val severity = when {
+                obstacle.apparentProximity == "very-close-looking" -> 2
+                key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
+                else -> 0
+            }
+            obstacleAnnouncementMemory.markAnnounced(key, severity, nowElapsedMs)
         }
         if (newOpenSector != null) {
             announcedOpenSectors = announcedOpenSectors + newOpenSector
@@ -1186,12 +1189,12 @@ LaunchedEffect(
                             distanceCalibrationCapture = null
                             distanceCalibrationCaptureTracker.cancel()
                             distanceCalibrationCaptureInProgress = false
-                            announcedSpatialItems = emptySet()
-                            announcedApproachItems = emptySet()
+                            obstacleAnnouncementMemory.reset()
                         },
                         onClearDistanceCalibration = {
                             DistanceCalibrationStore.clearCalibration(context)
                             distanceCalibration = null
+                            obstacleAnnouncementMemory.reset()
                             distanceCalibrationCapture = null
                             distanceCalibrationCaptureTracker.cancel()
                             distanceCalibrationCaptureInProgress = false
