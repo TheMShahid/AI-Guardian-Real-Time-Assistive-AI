@@ -141,7 +141,7 @@ class ForegroundObjectNarratorTest {
 
         tracker.observe(leftChair, nowMs = 0L)
         assertNotNull(tracker.observe(leftChair, nowMs = 100L))
-        tracker.markAnnounced("chair", "left", nowMs = 100L)
+        tracker.markAnnounced("chair", nowMs = 100L)
 
         assertNull(tracker.observe(rightChair, nowMs = 200L))
         assertNull(tracker.observe(rightChair, nowMs = 300L))
