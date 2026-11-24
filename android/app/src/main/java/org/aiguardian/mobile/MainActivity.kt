@@ -937,7 +937,6 @@ LaunchedEffect(
         if (accepted) {
             foregroundObjectTracker.markAnnounced(
                 label = foregroundObject.label,
-                direction = foregroundObject.direction,
                 nowMs = nowElapsedMs
             )
             lastAnnouncementTime = System.currentTimeMillis()
