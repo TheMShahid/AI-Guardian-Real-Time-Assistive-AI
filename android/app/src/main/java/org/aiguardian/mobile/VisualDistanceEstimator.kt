@@ -140,11 +140,21 @@ object VisualDistanceEstimator {
             return unavailable(DistanceQuality.INVALID_DETECTION)
         }
 
-        val objectHeight = typicalObjectHeightsMeters[label.trim().lowercase()]
+        val normalizedLabel = label.trim().lowercase()
+        val typicalHeight = typicalObjectHeightsMeters[normalizedLabel]
             ?: return unavailable(DistanceQuality.UNSUPPORTED_OBJECT)
 
         if (calibration == null) {
             return unavailable(DistanceQuality.NOT_CALIBRATED)
+        }
+
+        // When the detected class matches the user's measured reference class,
+        // reuse that measured physical height instead of a generic class prior.
+        // Other classes still rely on approximate typical-height priors.
+        val objectHeight = if (normalizedLabel == calibration.referenceLabel) {
+            calibration.referenceHeightMeters
+        } else {
+            typicalHeight
         }
 
         val centralMeters =
