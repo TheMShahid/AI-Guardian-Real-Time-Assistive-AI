@@ -75,7 +75,7 @@ internal object ForegroundObjectSelector {
  * interval.
  *
  * This is a visual-event key, not a physical object identity: a detector without
- * tracking IDs cannot distinguish two identical objects in the same image sector.
+ * tracking IDs cannot distinguish two identical objects in the same camera frame.
  */
 internal class ForegroundObjectAnnouncementTracker(
     private val requiredObservations: Int = 2,
