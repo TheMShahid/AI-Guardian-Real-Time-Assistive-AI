@@ -5,14 +5,17 @@ import kotlin.math.sqrt
 /**
  * Selects one prominent, confidently detected object for general scene narration.
  *
- * This is intentionally separate from PathAwareObstacleAnalyzer: ordinary object
- * narration must not require an object to be in the lower walking corridor.
+ * The normalized box geometry is retained so the announcement tracker can detect
+ * a meaningful change of visual focus, including a different object of the same class.
  */
 internal data class ForegroundObject(
     val label: String,
     val direction: String,
     val score: Float,
-    val normalizedBoxHeight: Float = 0f
+    val normalizedBoxHeight: Float = 0f,
+    val centerXRatio: Float = 0.5f,
+    val centerYRatio: Float = 0.5f,
+    val normalizedBoxWidth: Float = 0f
 )
 
 internal object ForegroundObjectSelector {
@@ -64,7 +67,12 @@ internal object ForegroundObjectSelector {
                 label = detection.label.trim().lowercase(),
                 direction = direction,
                 score = score,
-                normalizedBoxHeight = ((box.bottom - box.top) / height.toFloat()).coerceIn(0f, 1f)
+                normalizedBoxHeight = ((box.bottom - box.top) / height.toFloat())
+                    .coerceIn(0f, 1f),
+                centerXRatio = centerX,
+                centerYRatio = centerY,
+                normalizedBoxWidth = ((box.right - box.left) / width.toFloat())
+                    .coerceIn(0f, 1f)
             )
         }.maxByOrNull { it.score }
     }
@@ -72,37 +80,39 @@ internal object ForegroundObjectSelector {
 
 /**
  * Requires consecutive observations and suppresses repeat narration for the same
- * label while it remains in view, even if its estimated direction jitters. A new
- * announcement is allowed only after the label has been absent for a meaningful
- * interval.
+ * visual object. A new object of the same class becomes eligible when its normalized
+ * position/scale differs materially from the last announced object.
  *
- * This is a visual-event key, not a physical object identity: a detector without
- * tracking IDs cannot distinguish two identical objects in the same camera frame.
+ * This is a visual-focus heuristic, not persistent physical object tracking.
  */
 internal class ForegroundObjectAnnouncementTracker(
     private val requiredObservations: Int = 2,
     private val reannounceAfterAbsenceMs: Long = 5_000L,
     private val maxObservationGapMs: Long = 1_500L,
-    private val maxMemoryMs: Long = 60_000L
+    private val maxMemoryMs: Long = 60_000L,
+    private val maxFocusShiftRatio: Float = 0.22f,
+    private val maxScaleRatio: Float = 1.8f
 ) {
-    private var candidateKey: String? = null
+    private var candidateObject: ForegroundObject? = null
     private var observationCount = 0
     private var lastCandidateObservationAtMs = 0L
     private val lastSeenAtMs = mutableMapOf<String, Long>()
-    private val announcedKeys = mutableSetOf<String>()
+    private val lastAnnouncedObjects = mutableMapOf<String, ForegroundObject>()
 
     init {
         require(requiredObservations >= 1)
         require(reannounceAfterAbsenceMs > 0L)
         require(maxObservationGapMs > 0L)
         require(maxMemoryMs >= reannounceAfterAbsenceMs)
+        require(maxFocusShiftRatio in 0.05f..0.75f)
+        require(maxScaleRatio >= 1f)
     }
 
     fun observe(candidate: ForegroundObject?, nowMs: Long): ForegroundObject? {
         require(nowMs >= 0L)
 
         if (candidate == null) {
-            candidateKey = null
+            candidateObject = null
             observationCount = 0
             pruneExpired(nowMs)
             return null
@@ -110,42 +120,75 @@ internal class ForegroundObjectAnnouncementTracker(
 
         val key = key(candidate.label)
         val previousSeenAt = lastSeenAtMs[key]
-        if (previousSeenAt != null && nowMs - previousSeenAt >= reannounceAfterAbsenceMs) {
-            announcedKeys.remove(key)
+        if (
+            previousSeenAt != null &&
+            nowMs >= previousSeenAt &&
+            nowMs - previousSeenAt >= reannounceAfterAbsenceMs
+        ) {
+            lastAnnouncedObjects.remove(key)
         }
         lastSeenAtMs[key] = nowMs
         pruneExpired(nowMs)
 
+        val previousCandidate = candidateObject
         if (
-            key == candidateKey &&
+            previousCandidate != null &&
+            previousCandidate.label == candidate.label &&
             nowMs >= lastCandidateObservationAtMs &&
-            nowMs - lastCandidateObservationAtMs <= maxObservationGapMs
+            nowMs - lastCandidateObservationAtMs <= maxObservationGapMs &&
+            sameVisualFocus(previousCandidate, candidate)
         ) {
             observationCount += 1
         } else {
-            candidateKey = key
             observationCount = 1
         }
+        candidateObject = candidate
         lastCandidateObservationAtMs = nowMs
 
+        val lastAnnounced = lastAnnouncedObjects[key]
+        val isNewVisualFocus = lastAnnounced == null ||
+            !sameVisualFocus(lastAnnounced, candidate)
+
         return candidate.takeIf {
-            observationCount >= requiredObservations && key !in announcedKeys
+            observationCount >= requiredObservations && isNewVisualFocus
         }
     }
 
-    fun markAnnounced(label: String, nowMs: Long) {
+    fun markAnnounced(candidate: ForegroundObject, nowMs: Long) {
         require(nowMs >= 0L)
-        val key = key(label)
-        announcedKeys += key
+        val key = key(candidate.label)
+        lastAnnouncedObjects[key] = candidate
         lastSeenAtMs[key] = nowMs
     }
 
     fun reset() {
-        candidateKey = null
+        candidateObject = null
         observationCount = 0
         lastCandidateObservationAtMs = 0L
         lastSeenAtMs.clear()
-        announcedKeys.clear()
+        lastAnnouncedObjects.clear()
+    }
+
+    private fun sameVisualFocus(first: ForegroundObject, second: ForegroundObject): Boolean {
+        val dx = first.centerXRatio - second.centerXRatio
+        val dy = first.centerYRatio - second.centerYRatio
+        val centreDistance = sqrt(dx * dx + dy * dy)
+        if (centreDistance > maxFocusShiftRatio) return false
+
+        val firstHeight = first.normalizedBoxHeight
+        val secondHeight = second.normalizedBoxHeight
+        if (firstHeight <= 0f || secondHeight <= 0f) return true
+
+        val heightRatio = maxOf(firstHeight, secondHeight) / minOf(firstHeight, secondHeight)
+        if (heightRatio > maxScaleRatio) return false
+
+        val firstWidth = first.normalizedBoxWidth
+        val secondWidth = second.normalizedBoxWidth
+        if (firstWidth > 0f && secondWidth > 0f) {
+            val widthRatio = maxOf(firstWidth, secondWidth) / minOf(firstWidth, secondWidth)
+            if (widthRatio > maxScaleRatio) return false
+        }
+        return true
     }
 
     private fun pruneExpired(nowMs: Long) {
@@ -154,7 +197,7 @@ internal class ForegroundObjectAnnouncementTracker(
         }.keys
         expired.forEach { key ->
             lastSeenAtMs.remove(key)
-            announcedKeys.remove(key)
+            lastAnnouncedObjects.remove(key)
         }
     }
 
