@@ -138,6 +138,30 @@ class DistanceCalibrationCaptureTest {
     }
 
     @Test
+    fun trackerTimesOutAndCancelsIncompleteCapture() {
+        val tracker = DistanceCalibrationCaptureTracker(maxCaptureDurationMs = 10_000L)
+        tracker.start(5_000L)
+
+        assertFalse(tracker.hasTimedOut(14_999L))
+        assertTrue(tracker.hasTimedOut(15_000L))
+        assertFalse(tracker.isCollecting)
+        assertEquals(0, tracker.collectedSampleCount())
+        assertFalse(tracker.hasTimedOut(16_000L))
+    }
+
+    @Test
+    fun trackerRejectsSamplesArrivingAfterDeadline() {
+        val tracker = DistanceCalibrationCaptureTracker(maxCaptureDurationMs = 2_000L)
+        tracker.start(1_000L)
+
+        val result = tracker.add(sample(time = 3_000L))
+
+        assertNull(result)
+        assertFalse(tracker.isCollecting)
+        assertEquals(0, tracker.collectedSampleCount())
+    }
+
+    @Test
     fun trackerRestartsAfterStaleFrameGap() {
         val tracker = DistanceCalibrationCaptureTracker()
         tracker.start()
