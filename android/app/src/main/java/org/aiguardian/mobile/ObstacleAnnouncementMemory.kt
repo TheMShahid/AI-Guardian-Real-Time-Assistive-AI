@@ -80,10 +80,10 @@ internal class ObstacleAnnouncementMemory(
         }
 
         val currentCenter = estimate?.distanceCenterMeters()
+        val previousCenter = entry.lastAnnouncedDistanceCenterMeters
         val materiallyCloser = currentCenter != null &&
-            entry.lastAnnouncedDistanceCenterMeters?.let {
-                currentCenter <= it * closerDistanceRatio
-            } == true
+            previousCenter != null &&
+            currentCenter <= previousCenter * closerDistanceRatio
         val currentMinimumSteps = estimate?.minimumSteps
         val stepsReduced = currentMinimumSteps != null &&
             entry.lastAnnouncedMinimumSteps?.let {
