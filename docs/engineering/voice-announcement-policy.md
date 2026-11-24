@@ -42,4 +42,4 @@ These are announcement-management timings, not sensor sampling guarantees or saf
 
 ## Validation
 
-Unit tests cover consecutive-observation gating, duplicate suppression, re-arming after absence, direction-specific foreground events, obstacle severity escalation, and stride calculation input validation. Physical-device validation is still required for real detector flicker, TTS interruptions, and user-specific calibration.
+Unit tests cover camera startup gating, distinct-frame counting, foreground object switching, duplicate suppression, re-arming after absence, calibrated foreground distance wording, obstacle severity escalation, and stride calculation input validation. Physical-device validation is still required for real detector flicker, TTS queue interruption timing, camera-turn focus changes, and user-specific calibration.
