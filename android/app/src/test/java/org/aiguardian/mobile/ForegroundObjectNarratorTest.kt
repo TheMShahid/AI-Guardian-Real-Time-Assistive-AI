@@ -100,7 +100,7 @@ class ForegroundObjectNarratorTest {
         val stable = tracker.observe(candidate, nowMs = 100L)
         assertNotNull(stable)
 
-        tracker.markAnnounced("chair", "ahead", nowMs = 100L)
+        tracker.markAnnounced("chair", nowMs = 100L)
         assertNull(tracker.observe(candidate, nowMs = 200L))
         assertNull(tracker.observe(candidate, nowMs = 300L))
     }
@@ -114,7 +114,7 @@ class ForegroundObjectNarratorTest {
         tracker.observe(chair, nowMs = 0L)
         val stableChair = tracker.observe(chair, nowMs = 100L)
         assertNotNull(stableChair)
-        tracker.markAnnounced("chair", "ahead", nowMs = 100L)
+        tracker.markAnnounced("chair", nowMs = 100L)
 
         assertNull(tracker.observe(person, nowMs = 200L))
         assertEquals("person", tracker.observe(person, nowMs = 300L)?.label)
@@ -126,7 +126,7 @@ class ForegroundObjectNarratorTest {
 
         tracker.observe(chair, nowMs = 0L)
         assertNotNull(tracker.observe(chair, nowMs = 100L))
-        tracker.markAnnounced("chair", "ahead", nowMs = 100L)
+        tracker.markAnnounced("chair", nowMs = 100L)
 
         assertNull(tracker.observe(null, nowMs = 200L))
         assertNull(tracker.observe(chair, nowMs = 6_000L))
@@ -134,7 +134,7 @@ class ForegroundObjectNarratorTest {
     }
 
     @Test
-    fun sameLabelInDifferentDirectionIsASeparateVisualEvent() {
+    fun sameLabelChangingDirectionDoesNotRepeatAnnouncement() {
         val tracker = ForegroundObjectAnnouncementTracker()
         val leftChair = ForegroundObject("chair", "left", 0.8f)
         val rightChair = ForegroundObject("chair", "right", 0.8f)
@@ -144,7 +144,7 @@ class ForegroundObjectNarratorTest {
         tracker.markAnnounced("chair", "left", nowMs = 100L)
 
         assertNull(tracker.observe(rightChair, nowMs = 200L))
-        assertNotNull(tracker.observe(rightChair, nowMs = 300L))
+        assertNull(tracker.observe(rightChair, nowMs = 300L))
     }
 
 }
