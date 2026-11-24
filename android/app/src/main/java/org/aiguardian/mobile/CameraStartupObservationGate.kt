@@ -38,9 +38,4 @@ internal class CameraStartupObservationGate(
             nowMs >= started &&
             nowMs - started >= minimumWarmupMs
     }
-
-    fun isReady(): Boolean {
-        val started = startedAtMs ?: return false
-        return observedFrames >= requiredFrames && started >= 0L
-    }
 }
