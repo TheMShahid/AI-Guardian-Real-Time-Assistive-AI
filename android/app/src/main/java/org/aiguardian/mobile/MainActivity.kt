@@ -348,6 +348,7 @@ var sceneInferenceStarted by remember {
     var detectionFrameSequence by remember { mutableLongStateOf(0L) }
     val obstacleStabilityTracker = remember { ObstacleStabilityTracker() }
     val obstacleApproachTracker = remember { ObstacleApproachTracker() }
+    val foregroundObjectTracker = remember { ForegroundObjectAnnouncementTracker() }
     var announcedApproachItems by remember { mutableStateOf<Set<String>>(emptySet()) }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
@@ -558,6 +559,7 @@ val voiceAssistant = remember(context) {
     voiceAssistant.stop()
     obstacleStabilityTracker.reset()
     obstacleApproachTracker.reset()
+    foregroundObjectTracker.reset()
     announcedApproachItems = emptySet()
     announcedSpatialItems = emptySet()
     announcedOpenSectors = emptySet()
@@ -852,7 +854,12 @@ LaunchedEffect(
         key in stableKeys || obstacle.apparentProximity == "very-close-looking"
     }
 
+    val foregroundObject = foregroundObjectTracker.observe(
+        ForegroundObjectSelector.select(detections)
+    )
+
     if (!voiceAnnouncements) {
+        foregroundObjectTracker.reset()
         announcedSpatialItems = emptySet()
         announcedApproachItems = emptySet()
         announcedOpenSectors = emptySet()
@@ -861,6 +868,30 @@ LaunchedEffect(
 
     announcedSpatialItems = announcedSpatialItems.intersect(currentKeys)
     announcedApproachItems = announcedApproachItems.intersect(currentKeys)
+
+    // General scene narration is independent of the lower walking-corridor
+    // obstacle filter. Safety-relevant objects remain handled by the alert path.
+    if (
+        ttsReady &&
+        foregroundObject != null &&
+        prioritizedObstacles.none { it.detection.label == foregroundObject.label } &&
+        !voiceAssistant.isSpeaking()
+    ) {
+        val accepted = voiceAssistant.speak(
+            SpeechLocalizer.localize(
+                label = foregroundObject.label,
+                direction = foregroundObject.direction,
+                language = speechLanguage
+            ),
+            flushQueue = true,
+            utteranceId = "guardian-object-narration"
+        )
+        if (accepted) {
+            foregroundObjectTracker.markAnnounced(foregroundObject.label)
+            lastAnnouncementTime = System.currentTimeMillis()
+            return@LaunchedEffect
+        }
+    }
 
     val openSectors = PathAwareObstacleAnalyzer
         .sectorsWithoutRecognizedObstacles(detections)
