@@ -174,6 +174,17 @@ object SpeechLocalizer {
         }
     }
 
+    fun localizeNoObjectsDetected(language: String): String {
+        return when (language) {
+            "Urdu (Pakistan)" ->
+                "اس وقت کیمرے کے سامنے کوئی قابلِ شناخت چیز نظر نہیں آ رہی۔ یہ راستہ محفوظ ہونے کی تصدیق نہیں ہے۔"
+            "Pashto (Afghanistan)" ->
+                "دا مهال د کمرې په لید کې د پېژندلو وړ شی نه ښکاري. دا د لارې د خوندي‌والي تصدیق نه دی."
+            else ->
+                "No supported object is currently detected in the camera view. This does not confirm that the path is clear or safe."
+        }
+    }
+
     fun localizeUnobservedSector(sector: String, language: String): String {
         return when (language) {
             "Urdu (Pakistan)" -> when (sector) {
