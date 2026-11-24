@@ -43,7 +43,7 @@ internal class ObstacleAnnouncementMemory(
         val expiredKeys = entries.filterValues {
             nowMs >= it.lastSeenAtMs && nowMs - it.lastSeenAtMs > maxMemoryMs
         }.keys
-        expiredKeys.forEach(entries::remove)
+        expiredKeys.forEach { key -> entries.remove(key) }
 
         currentKeys.forEach { key ->
             val previous = entries[key]
