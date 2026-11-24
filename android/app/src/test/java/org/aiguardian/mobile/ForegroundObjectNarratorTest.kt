@@ -147,4 +147,34 @@ class ForegroundObjectNarratorTest {
         assertNull(tracker.observe(rightChair, nowMs = 300L))
     }
 
+    @Test
+    fun selectedObjectCarriesNormalizedHeightForDistanceEstimation() {
+        val selected = ForegroundObjectSelector.select(
+            listOf(
+                detection(
+                    label = "chair",
+                    top = 200f,
+                    bottom = 700f
+                )
+            )
+        )
+
+        assertNotNull(selected)
+        assertEquals(0.5f, selected!!.normalizedBoxHeight, 0.001f)
+    }
+
+    @Test
+    fun changingToANewObjectClassMakesItEligibleForNarration() {
+        val tracker = ForegroundObjectAnnouncementTracker()
+        val chair = ForegroundObject("chair", "ahead", 0.8f)
+        val bottle = ForegroundObject("bottle", "ahead", 0.8f)
+
+        tracker.observe(chair, nowMs = 0L)
+        assertNotNull(tracker.observe(chair, nowMs = 100L))
+        tracker.markAnnounced("chair", nowMs = 100L)
+
+        assertNull(tracker.observe(bottle, nowMs = 200L))
+        assertEquals("bottle", tracker.observe(bottle, nowMs = 300L)?.label)
+    }
+
 }
