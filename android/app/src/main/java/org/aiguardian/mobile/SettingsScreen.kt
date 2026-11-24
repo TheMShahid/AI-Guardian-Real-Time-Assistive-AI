@@ -615,6 +615,8 @@ private fun DistanceCalibrationSettings(
     val stride = remember(strideLengthMeters) {
         mutableStateOf(strideLengthMeters?.toString() ?: "")
     }
+    val strideTrialDistance = remember { mutableStateOf("") }
+    val strideTrialSteps = remember { mutableStateOf("") }
     val error = remember { mutableStateOf<String?>(null) }
 
     SettingsCard {
@@ -664,11 +666,48 @@ private fun DistanceCalibrationSettings(
                 color = if (capture != null) Cyan else Muted,
                 fontSize = 12.sp
             )
-            CalibrationInput("Your measured average step length in metres (optional)", stride.value) {
+            Text(
+                text = "STEP-LENGTH CALIBRATION",
+                color = Cyan,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "In a safe, flat indoor area, have a helper measure a walking distance. Walk it normally while the helper counts your steps. The app calculates your average stride; do not perform this test near stairs, traffic or other hazards.",
+                color = Muted,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+            CalibrationInput("Measured walking distance in metres (1–100)", strideTrialDistance.value) {
+                strideTrialDistance.value = it
+            }
+            CalibrationInput("Number of steps taken (1–1000)", strideTrialSteps.value) {
+                strideTrialSteps.value = it
+            }
+            OutlinedButton(
+                onClick = {
+                    val distance = strideTrialDistance.value.toFloatOrNull()
+                    val steps = strideTrialSteps.value.toIntOrNull()
+                    val calculated = if (distance != null && steps != null) {
+                        StrideLengthCalculator.calculate(distance, steps)
+                    } else null
+
+                    if (calculated == null) {
+                        error.value = "Enter a measured distance of 1–100 metres and a step count that produces an average stride of 0.20–1.50 metres."
+                    } else {
+                        stride.value = String.format(java.util.Locale.US, "%.2f", calculated)
+                        error.value = null
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Calculate my average step length")
+            }
+            CalibrationInput("Average step length in metres (calculated or measured)", stride.value) {
                 stride.value = it
             }
             Text(
-                text = "To measure step length, walk a known distance with a helper in a safe indoor area, then divide that distance by your number of steps. Leave this field empty if you have not measured it; step counts will then stay disabled.",
+                text = "The calculated stride is an average from your measured trial. Step guidance remains an approximate distance conversion, not a prediction of collision or a safe route.",
                 color = Muted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp
