@@ -976,50 +976,56 @@ LaunchedEffect(
         )
     }
 
-    val urgentItems = newItems.filter {
-        it.apparentProximity == "very-close-looking"
-    }
-
-
     // Silence is intentional when no reliable obstacle/object event is present.
     // An unobserved sector is not evidence that the route is clear or safe.
     if (newItems.isEmpty()) {
         return@LaunchedEffect
     }
 
-    // New confirmed events are not delayed by a global speech cooldown.
-    // Per-object memory and escalation thresholds already prevent repetition.
+    // Speak the most safety-relevant event first. Mark only this item as announced;
+    // other confirmed objects remain eligible for subsequent frames.
+    val selectedObstacle = newItems.maxWithOrNull(
+        compareBy<PrioritizedObstacle> {
+            when {
+                it.apparentProximity == "very-close-looking" -> 2
+                "${it.detection.label}|${it.direction}" in approachingKeys ||
+                    it.apparentProximity == "close-looking" -> 1
+                else -> 0
+            }
+        }.thenBy { it.relevanceScore }
+    ) ?: return@LaunchedEffect
 
-    val spokenParts = mutableListOf<String>()
-    newItems.take(1).forEach { obstacle ->
-        spokenParts += SpeechLocalizer.localizeObstacle(
-            label = obstacle.detection.label,
-            direction = obstacle.direction,
-            apparentProximity = obstacle.apparentProximity,
-            language = speechLanguage,
-            appearsToApproach = (
-                "${obstacle.detection.label}|${obstacle.direction}" in approachingKeys
-            ),
-            distanceText = DistanceSpeechFormatter.format(
-                estimate = obstacleDistanceEstimates[
-                    "${obstacle.detection.label}|${obstacle.direction}"
-                ] ?: VisualDistanceEstimator.estimate(
-                    label = obstacle.detection.label,
-                    normalizedBoxHeight = obstacle.normalizedHeight,
+    val selectedKey = "${selectedObstacle.detection.label}|${selectedObstacle.direction}"
+    val selectedSeverity = when {
+        selectedObstacle.apparentProximity == "very-close-looking" -> 2
+        selectedKey in approachingKeys || selectedObstacle.apparentProximity == "close-looking" -> 1
+        else -> 0
+    }
+
+    val spokenText = SpeechLocalizer.localizeObstacle(
+        label = selectedObstacle.detection.label,
+        direction = selectedObstacle.direction,
+        apparentProximity = selectedObstacle.apparentProximity,
+        language = speechLanguage,
+        appearsToApproach = selectedKey in approachingKeys,
+        distanceText = DistanceSpeechFormatter.format(
+            estimate = obstacleDistanceEstimates[selectedKey]
+                ?: VisualDistanceEstimator.estimate(
+                    label = selectedObstacle.detection.label,
+                    normalizedBoxHeight = selectedObstacle.normalizedHeight,
                     calibration = distanceCalibration,
                     strideLengthMeters = strideLengthMeters
                 ),
-                language = speechLanguage
-            )
+            language = speechLanguage
         )
-    }
+    )
 
+    val isUrgent = selectedSeverity == 2
     val accepted = voiceAssistant.speak(
-        spokenParts.joinToString(" "),
-        // Playback-idle check above ensures no active instruction is interrupted.
-        // Flush any obsolete pending item rather than building a stale queue.
+        spokenText,
+        // A newly confirmed event flushes stale narration already in progress.
         flushQueue = true,
-        utteranceId = if (urgentItems.isNotEmpty()) {
+        utteranceId = if (isUrgent) {
             "guardian-urgent-obstacle"
         } else {
             "guardian-spatial-announcement"
@@ -1027,20 +1033,12 @@ LaunchedEffect(
     )
 
     if (accepted) {
-        newItems.forEach { obstacle ->
-            val key = "${obstacle.detection.label}|${obstacle.direction}"
-            val severity = when {
-                obstacle.apparentProximity == "very-close-looking" -> 2
-                key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
-                else -> 0
-            }
-            obstacleAnnouncementMemory.markAnnounced(
-                key = key,
-                severity = severity,
-                nowMs = nowElapsedMs,
-                estimate = obstacleDistanceEstimates[key]
-            )
-        }
+        obstacleAnnouncementMemory.markAnnounced(
+            key = selectedKey,
+            severity = selectedSeverity,
+            nowMs = nowElapsedMs,
+            estimate = obstacleDistanceEstimates[selectedKey]
+        )
     } else {
         Log.w(
             "GuardianVoice",
