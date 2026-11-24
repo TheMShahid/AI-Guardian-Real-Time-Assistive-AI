@@ -4,6 +4,9 @@ Status: implemented as a conservative duplicate-suppression policy for detector 
 
 ## Goals
 
+- Wait for a stable camera warm-up before speaking live detections.
+- Let a newly stable object or obstacle replace stale lower-priority speech.
+- Never automatically describe an unobserved sector as clear or safe.
 - Avoid repeating the same visible object every camera frame.
 - Require consecutive observations before general foreground narration.
 - Treat the same detector label in a different image direction as a separate visual event.
@@ -13,7 +16,7 @@ Status: implemented as a conservative duplicate-suppression policy for detector 
 
 ## Event identity and limitations
 
-The current detector does not provide persistent tracking IDs. The policy therefore uses the normalized detector label and coarse image direction as a visual-event key, such as `chair|ahead`. It cannot reliably distinguish two identical chairs in the same direction or prove that a newly detected chair is the same physical chair. A future object-tracking component should replace this coarse key with persistent track IDs.
+The current detector does not provide persistent tracking IDs. General foreground narration uses the normalized detector label so minor direction jitter does not repeat the same class announcement. Walking-obstacle alerts use the normalized label plus coarse image direction, such as `chair|front-center`. Neither identity can reliably distinguish two identical physical objects. A future object-tracking component should replace these coarse keys with persistent track IDs.
 
 ## Current timing policy
 
@@ -26,7 +29,7 @@ The current detector does not provide persistent tracking IDs. The policy theref
 - With valid calibration, a distance update is eligible only after the estimated range centre moves at least 30% closer or the lower step bound drops by at least two steps; the same cooldown applies.
 - Small distance fluctuations do not trigger speech.
 - Old visual-event memory is pruned after 60 seconds.
-- Existing global speech cooldown and urgent-warning behavior remain in place.
+- Per-object event memory and escalation cooldowns replace a global routine speech cooldown. New confirmed objects are not delayed by unrelated previous announcements.
 
 These are announcement-management timings, not sensor sampling guarantees or safety thresholds.
 
