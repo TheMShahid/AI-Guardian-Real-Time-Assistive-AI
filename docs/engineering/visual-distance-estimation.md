@@ -63,5 +63,7 @@ A calibration is specific to the camera, zoom, resolution and image pipeline use
 - `DistanceCalibrationCaptureTest.kt`: sample normalization, median aggregation, class consistency, motion, size stability and stale-frame-gap tests.
 - `DistanceCalibrationStore.kt`: local persistence for calibration and stride settings.
 - `DistanceSpeechFormatter.kt`: localized range and optional step-band formatting.
+- `ForegroundDistanceUpdateTracker.kt`: suppresses small foreground range fluctuations and permits a spoken update only after a material calibrated reduction (30% closer range centre or at least two fewer lower-bound steps).
+- Foreground object narration includes the current calibrated distance range and, only when measured stride is saved, the corresponding approximate step band. Subsequent meaningful reductions can trigger a concise refreshed object/distance announcement.
 - `DistanceSpeechFormatterTest.kt`: localized formatting and refusal to speak unavailable measurements.
 - `SpeechLocalizerDistanceTest.kt`: calibrated and uncalibrated obstacle voice wording.
