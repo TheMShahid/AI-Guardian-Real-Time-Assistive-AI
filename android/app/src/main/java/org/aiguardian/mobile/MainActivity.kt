@@ -941,7 +941,16 @@ LaunchedEffect(
             SpeechLocalizer.localize(
                 label = foregroundObject.label,
                 direction = foregroundObject.direction,
-                language = speechLanguage
+                language = speechLanguage,
+                distanceText = DistanceSpeechFormatter.format(
+                    estimate = VisualDistanceEstimator.estimate(
+                        label = foregroundObject.label,
+                        normalizedBoxHeight = foregroundObject.normalizedBoxHeight,
+                        calibration = distanceCalibration,
+                        strideLengthMeters = strideLengthMeters
+                    ),
+                    language = speechLanguage
+                )
             ),
             // A newly stable foreground object supersedes stale narration.
             flushQueue = true,
@@ -982,7 +991,6 @@ LaunchedEffect(
     }
 
     val currentTime = System.currentTimeMillis()
-    val canSpeakRoutineUpdate = currentTime - lastAnnouncementTime >= 3000L
 
     // Silence is intentional when no reliable obstacle/object event is present.
     // An unobserved sector is not evidence that the route is clear or safe.
@@ -990,11 +998,8 @@ LaunchedEffect(
         return@LaunchedEffect
     }
 
-    // A visually very large obstacle bypasses the routine cooldown.
-    // TTS QUEUE_FLUSH lets this warning interrupt lower-priority narration.
-    if (urgentItems.isEmpty() && !canSpeakRoutineUpdate) {
-        return@LaunchedEffect
-    }
+    // New confirmed events are not delayed by a global speech cooldown.
+    // Per-object memory and escalation thresholds already prevent repetition.
 
     val spokenParts = mutableListOf<String>()
     newItems.take(1).forEach { obstacle ->
