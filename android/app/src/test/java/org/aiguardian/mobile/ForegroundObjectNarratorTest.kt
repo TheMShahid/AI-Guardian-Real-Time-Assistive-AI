@@ -100,7 +100,7 @@ class ForegroundObjectNarratorTest {
         val stable = tracker.observe(candidate, nowMs = 100L)
         assertNotNull(stable)
 
-        tracker.markAnnounced("chair", nowMs = 100L)
+        tracker.markAnnounced(chair, nowMs = 100L)
         assertNull(tracker.observe(candidate, nowMs = 200L))
         assertNull(tracker.observe(candidate, nowMs = 300L))
     }
@@ -114,7 +114,7 @@ class ForegroundObjectNarratorTest {
         tracker.observe(chair, nowMs = 0L)
         val stableChair = tracker.observe(chair, nowMs = 100L)
         assertNotNull(stableChair)
-        tracker.markAnnounced("chair", nowMs = 100L)
+        tracker.markAnnounced(chair, nowMs = 100L)
 
         assertNull(tracker.observe(person, nowMs = 200L))
         assertEquals("person", tracker.observe(person, nowMs = 300L)?.label)
@@ -126,7 +126,7 @@ class ForegroundObjectNarratorTest {
 
         tracker.observe(chair, nowMs = 0L)
         assertNotNull(tracker.observe(chair, nowMs = 100L))
-        tracker.markAnnounced("chair", nowMs = 100L)
+        tracker.markAnnounced(chair, nowMs = 100L)
 
         assertNull(tracker.observe(null, nowMs = 200L))
         assertNull(tracker.observe(chair, nowMs = 6_000L))
@@ -141,7 +141,7 @@ class ForegroundObjectNarratorTest {
 
         tracker.observe(leftChair, nowMs = 0L)
         assertNotNull(tracker.observe(leftChair, nowMs = 100L))
-        tracker.markAnnounced("chair", nowMs = 100L)
+        tracker.markAnnounced(chair, nowMs = 100L)
 
         assertNull(tracker.observe(rightChair, nowMs = 200L))
         assertNull(tracker.observe(rightChair, nowMs = 300L))
@@ -171,7 +171,7 @@ class ForegroundObjectNarratorTest {
 
         tracker.observe(chair, nowMs = 0L)
         assertNotNull(tracker.observe(chair, nowMs = 100L))
-        tracker.markAnnounced("chair", nowMs = 100L)
+        tracker.markAnnounced(chair, nowMs = 100L)
 
         assertNull(tracker.observe(bottle, nowMs = 200L))
         assertEquals("bottle", tracker.observe(bottle, nowMs = 300L)?.label)
