@@ -25,6 +25,7 @@ internal class VoiceAssistant(
 
     @Volatile private var engine: TextToSpeech? = null
     @Volatile private var closed = false
+    @Volatile private var latestUtteranceId: String? = null
 
     init {
         val createdEngine = TextToSpeech(appContext) { status ->
@@ -55,14 +56,21 @@ internal class VoiceAssistant(
                     override fun onDone(utteranceId: String) {
                         Log.i("GuardianVoice", "TTS playback completed: utteranceId=$utteranceId")
                         mainHandler.post {
-                            if (!closed) onUtteranceEvent(utteranceId, true)
+                            if (!closed && utteranceId == latestUtteranceId) {
+                                latestUtteranceId = null
+                                onUtteranceEvent(utteranceId, true)
+                            }
                         }
                     }
 
                     override fun onError(utteranceId: String) {
                         Log.e("GuardianVoice", "TTS playback failed: utteranceId=$utteranceId")
                         mainHandler.post {
-                            if (!closed) onUtteranceEvent(utteranceId, false)
+                            // Ignore delayed failures from utterances replaced by QUEUE_FLUSH.
+                            if (!closed && utteranceId == latestUtteranceId) {
+                                latestUtteranceId = null
+                                onUtteranceEvent(utteranceId, false)
+                            }
                         }
                     }
 
@@ -72,7 +80,11 @@ internal class VoiceAssistant(
                             "TTS playback failed: utteranceId=$utteranceId, errorCode=$errorCode"
                         )
                         mainHandler.post {
-                            if (!closed) onUtteranceEvent(utteranceId, false)
+                            // Ignore delayed failures from utterances replaced by QUEUE_FLUSH.
+                            if (!closed && utteranceId == latestUtteranceId) {
+                                latestUtteranceId = null
+                                onUtteranceEvent(utteranceId, false)
+                            }
                         }
                     }
                 }
@@ -161,7 +173,9 @@ internal class VoiceAssistant(
             "TTS speak request: accepted=$accepted, result=$result, textLength=" +
                 message.length + ", utteranceId=" + requestId
         )
-        if (!accepted) {
+        if (accepted) {
+            latestUtteranceId = requestId
+        } else {
             Log.e("GuardianVoice", "TTS engine rejected speech request: result=$result")
         }
         return accepted
@@ -179,6 +193,7 @@ internal class VoiceAssistant(
     @Synchronized
     fun stop() {
         if (!closed) {
+            latestUtteranceId = null
             engine?.stop()
             Log.i("GuardianVoice", "TTS stop requested")
         }
@@ -189,6 +204,7 @@ internal class VoiceAssistant(
         if (closed) return
         closed = true
         val currentEngine = engine
+        latestUtteranceId = null
         engine = null
         currentEngine?.stop()
         currentEngine?.shutdown()
