@@ -96,13 +96,13 @@ class ForegroundObjectNarratorTest {
         val tracker = ForegroundObjectAnnouncementTracker()
         val candidate = ForegroundObject("chair", "ahead", 0.8f)
 
-        assertNull(tracker.observe(candidate))
-        val stable = tracker.observe(candidate)
+        assertNull(tracker.observe(candidate, nowMs = 0L))
+        val stable = tracker.observe(candidate, nowMs = 100L)
         assertNotNull(stable)
 
-        tracker.markAnnounced("chair")
-        assertNull(tracker.observe(candidate))
-        assertNull(tracker.observe(candidate))
+        tracker.markAnnounced("chair", "ahead", nowMs = 100L)
+        assertNull(tracker.observe(candidate, nowMs = 200L))
+        assertNull(tracker.observe(candidate, nowMs = 300L))
     }
 
     @Test
@@ -111,12 +111,40 @@ class ForegroundObjectNarratorTest {
         val chair = ForegroundObject("chair", "ahead", 0.8f)
         val person = ForegroundObject("person", "left", 0.9f)
 
-        tracker.observe(chair)
-        val stableChair = tracker.observe(chair)
+        tracker.observe(chair, nowMs = 0L)
+        val stableChair = tracker.observe(chair, nowMs = 100L)
         assertNotNull(stableChair)
-        tracker.markAnnounced("chair")
+        tracker.markAnnounced("chair", "ahead", nowMs = 100L)
 
-        assertNull(tracker.observe(person))
-        assertEquals("person", tracker.observe(person)?.label)
+        assertNull(tracker.observe(person, nowMs = 200L))
+        assertEquals("person", tracker.observe(person, nowMs = 300L)?.label)
     }
+    @Test
+    fun sameObjectCanBeAnnouncedAgainOnlyAfterMeaningfulAbsence() {
+        val tracker = ForegroundObjectAnnouncementTracker()
+        val chair = ForegroundObject("chair", "ahead", 0.8f)
+
+        tracker.observe(chair, nowMs = 0L)
+        assertNotNull(tracker.observe(chair, nowMs = 100L))
+        tracker.markAnnounced("chair", "ahead", nowMs = 100L)
+
+        assertNull(tracker.observe(null, nowMs = 200L))
+        assertNull(tracker.observe(chair, nowMs = 6_000L))
+        assertNotNull(tracker.observe(chair, nowMs = 6_100L))
+    }
+
+    @Test
+    fun sameLabelInDifferentDirectionIsASeparateVisualEvent() {
+        val tracker = ForegroundObjectAnnouncementTracker()
+        val leftChair = ForegroundObject("chair", "left", 0.8f)
+        val rightChair = ForegroundObject("chair", "right", 0.8f)
+
+        tracker.observe(leftChair, nowMs = 0L)
+        assertNotNull(tracker.observe(leftChair, nowMs = 100L))
+        tracker.markAnnounced("chair", "left", nowMs = 100L)
+
+        assertNull(tracker.observe(rightChair, nowMs = 200L))
+        assertNotNull(tracker.observe(rightChair, nowMs = 300L))
+    }
+
 }
