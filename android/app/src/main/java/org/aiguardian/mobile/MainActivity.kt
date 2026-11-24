@@ -908,6 +908,21 @@ LaunchedEffect(
         key in stableKeys || obstacle.apparentProximity == "very-close-looking"
     }
 
+    val newItems = stableItems.filter { obstacle ->
+        val key = "${obstacle.detection.label}|${obstacle.direction}"
+        val severity = when {
+            obstacle.apparentProximity == "very-close-looking" -> 2
+            key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
+            else -> 0
+        }
+        obstacleAnnouncementMemory.shouldAnnounce(
+            key = key,
+            severity = severity,
+            nowMs = nowElapsedMs,
+            estimate = obstacleDistanceEstimates[key]
+        )
+    }
+
     val foregroundObject = foregroundObjectTracker.observe(
         ForegroundObjectSelector.select(detections),
         nowMs = nowElapsedMs
@@ -924,7 +939,7 @@ LaunchedEffect(
     if (
         ttsReady &&
         foregroundObject != null &&
-        stableItems.isEmpty() &&
+        newItems.isEmpty() &&
         prioritizedObstacles.none { it.detection.label == foregroundObject.label } &&
         !distanceCalibrationCaptureInProgress
     ) {
@@ -960,21 +975,6 @@ LaunchedEffect(
 
     // A newly stable object/obstacle is more relevant than the previous narration.
     // The next QUEUE_FLUSH request below interrupts the stale spoken item.
-
-    val newItems = stableItems.filter { obstacle ->
-        val key = "${obstacle.detection.label}|${obstacle.direction}"
-        val severity = when {
-            obstacle.apparentProximity == "very-close-looking" -> 2
-            key in approachingKeys || obstacle.apparentProximity == "close-looking" -> 1
-            else -> 0
-        }
-        obstacleAnnouncementMemory.shouldAnnounce(
-            key = key,
-            severity = severity,
-            nowMs = nowElapsedMs,
-            estimate = obstacleDistanceEstimates[key]
-        )
-    }
 
     // Silence is intentional when no reliable obstacle/object event is present.
     // An unobserved sector is not evidence that the route is clear or safe.
