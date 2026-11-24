@@ -438,7 +438,9 @@ val voiceAssistant = remember(context) {
                 (
                     utteranceId.startsWith("guardian-spatial-announcement") ||
                     utteranceId.startsWith("guardian-urgent-obstacle") ||
-                    utteranceId.startsWith("guardian-object-narration")
+                    utteranceId.startsWith("guardian-object-narration") ||
+                    utteranceId.startsWith("guardian-object-distance-update") ||
+                    utteranceId.startsWith("guardian-empty-scene-status")
                 )
             ) {
                 Log.w(
@@ -446,8 +448,15 @@ val voiceAssistant = remember(context) {
                     "Obstacle announcement playback failed; allowing retry"
                 )
                 obstacleAnnouncementMemory.reset()
-                if (utteranceId.startsWith("guardian-object-narration")) {
+                if (
+                    utteranceId.startsWith("guardian-object-narration") ||
+                    utteranceId.startsWith("guardian-object-distance-update")
+                ) {
                     foregroundObjectTracker.reset()
+                    foregroundDistanceUpdateTracker.reset()
+                }
+                if (utteranceId.startsWith("guardian-empty-scene-status")) {
+                    emptySceneAnnouncementTracker.reset()
                 }
             }
         }
