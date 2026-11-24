@@ -84,9 +84,10 @@ internal class ObstacleAnnouncementMemory(
             entry.lastAnnouncedDistanceCenterMeters?.let {
                 currentCenter <= it * closerDistanceRatio
             } == true
-        val stepsReduced = estimate?.minimumSteps != null &&
+        val currentMinimumSteps = estimate?.minimumSteps
+        val stepsReduced = currentMinimumSteps != null &&
             entry.lastAnnouncedMinimumSteps?.let {
-                it - estimate.minimumSteps >= 2
+                it - currentMinimumSteps >= 2
             } == true
 
         return severity > entry.highestAnnouncedSeverity ||
