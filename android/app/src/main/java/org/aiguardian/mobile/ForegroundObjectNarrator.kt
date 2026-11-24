@@ -49,9 +49,9 @@ internal object ForegroundObjectSelector {
             ) / 0.7072f
             val centerScore = 1f - centerDistance.coerceIn(0f, 1f)
             val sizeScore = sqrt(areaRatio).coerceIn(0f, 1f)
-            val score = detection.confidence * 0.50f +
-                centerScore * 0.25f +
-                sizeScore * 0.25f
+            val score = detection.confidence * 0.45f +
+                centerScore * 0.15f +
+                sizeScore * 0.40f
 
             val direction = when {
                 centerX < 0.38f -> "left"
