@@ -77,9 +77,11 @@ class DistanceCalibrationCaptureTracker(
     private val requiredSamples: Int = 5,
     private val maxRelativeHeightDeviation: Float = 0.10f,
     private val maxCenterMovement: Float = 0.08f,
-    private val maxGapBetweenSamplesMs: Long = 1_500L
+    private val maxGapBetweenSamplesMs: Long = 1_500L,
+    private val maxCaptureDurationMs: Long = 12_000L
 ) {
     private val samples = mutableListOf<DistanceCalibrationCapture>()
+    private var captureStartedAtEpochMs: Long? = null
     var isCollecting: Boolean = false
         private set
 
@@ -88,16 +90,29 @@ class DistanceCalibrationCaptureTracker(
         require(maxRelativeHeightDeviation > 0f && maxRelativeHeightDeviation < 1f)
         require(maxCenterMovement > 0f && maxCenterMovement < 1f)
         require(maxGapBetweenSamplesMs > 0L)
+        require(maxCaptureDurationMs > 0L)
     }
 
-    fun start() {
+    fun start(nowEpochMs: Long = 0L) {
+        require(nowEpochMs >= 0L)
         samples.clear()
+        captureStartedAtEpochMs = nowEpochMs
         isCollecting = true
     }
 
     fun cancel() {
         samples.clear()
+        captureStartedAtEpochMs = null
         isCollecting = false
+    }
+
+    /** Returns true and cancels collection when the capture deadline is exceeded. */
+    fun hasTimedOut(nowEpochMs: Long): Boolean {
+        require(nowEpochMs >= 0L)
+        val startedAt = captureStartedAtEpochMs ?: return false
+        if (!isCollecting || nowEpochMs - startedAt < maxCaptureDurationMs) return false
+        cancel()
+        return true
     }
 
     /**
@@ -105,7 +120,7 @@ class DistanceCalibrationCaptureTracker(
      * Returns null while collecting or when the current sample is invalid.
      */
     fun add(sample: DistanceCalibrationCapture): DistanceCalibrationCapture? {
-        if (!isCollecting) return null
+        if (!isCollecting || hasTimedOut(sample.capturedAtEpochMs)) return null
 
         val previous = samples.lastOrNull()
         if (
