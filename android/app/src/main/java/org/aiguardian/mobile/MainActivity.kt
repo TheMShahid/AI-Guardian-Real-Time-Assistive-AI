@@ -348,6 +348,8 @@ var sceneInferenceStarted by remember {
     val obstacleAnnouncementMemory = remember { ObstacleAnnouncementMemory() }
     val foregroundObjectTracker = remember { ForegroundObjectAnnouncementTracker() }
     val cameraStartupObservationGate = remember { CameraStartupObservationGate() }
+    val emptySceneAnnouncementTracker = remember { EmptySceneAnnouncementTracker() }
+    val foregroundDistanceUpdateTracker = remember { ForegroundDistanceUpdateTracker() }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
 }
@@ -503,6 +505,8 @@ val voiceAssistant = remember(context) {
         obstacleStabilityTracker.reset()
         obstacleApproachTracker.reset()
         foregroundObjectTracker.reset()
+        foregroundDistanceUpdateTracker.reset()
+        emptySceneAnnouncementTracker.reset()
         obstacleAnnouncementMemory.reset()
         sessionStartedAt = System.currentTimeMillis()
         sessionPeakCounts = emptyMap()
@@ -565,6 +569,8 @@ val voiceAssistant = remember(context) {
     obstacleStabilityTracker.reset()
     obstacleApproachTracker.reset()
     foregroundObjectTracker.reset()
+    foregroundDistanceUpdateTracker.reset()
+    emptySceneAnnouncementTracker.reset()
     obstacleAnnouncementMemory.reset()
     detectionFrameSequence++
 
@@ -872,6 +878,56 @@ LaunchedEffect(
         return@LaunchedEffect
     }
 
+    emptySceneAnnouncementTracker.observe(
+        hasDetections = detections.isNotEmpty(),
+        frameId = detectionFrameSequence,
+        nowMs = nowElapsedMs
+    )
+
+    if (!voiceAnnouncements) {
+        foregroundObjectTracker.reset()
+        foregroundDistanceUpdateTracker.reset()
+        emptySceneAnnouncementTracker.reset()
+        obstacleAnnouncementMemory.reset()
+        return@LaunchedEffect
+    }
+
+    // Only a sustained detector-empty view receives neutral feedback. This does
+    // not mean the path is clear: the detector may miss small, transparent or
+    // otherwise unsupported objects.
+    if (detections.isEmpty()) {
+        obstacleAnnouncementMemory.updateSeen(emptySet(), nowElapsedMs)
+        obstacleStabilityTracker.update(
+            currentKeys = emptySet(),
+            frameId = detectionFrameSequence,
+            nowMs = nowElapsedMs
+        )
+        obstacleApproachTracker.update(
+            obstacles = emptyList(),
+            frameId = detectionFrameSequence,
+            nowMs = nowElapsedMs
+        )
+        foregroundObjectTracker.observe(null, nowElapsedMs)
+        foregroundDistanceUpdateTracker.reset()
+
+        if (
+            ttsReady &&
+            !distanceCalibrationCaptureInProgress &&
+            emptySceneAnnouncementTracker.shouldAnnounce(nowElapsedMs)
+        ) {
+            val accepted = voiceAssistant.speak(
+                SpeechLocalizer.localizeNoObjectsDetected(speechLanguage),
+                // Neutral empty-view feedback must never interrupt an obstacle alert.
+                flushQueue = false,
+                utteranceId = "guardian-empty-scene-status"
+            )
+            if (accepted) {
+                emptySceneAnnouncementTracker.markAnnounced(nowElapsedMs)
+            }
+        }
+        return@LaunchedEffect
+    }
+
     val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
     val currentKeys = prioritizedObstacles.map { obstacle ->
         "${obstacle.detection.label}|${obstacle.direction}"
@@ -923,16 +979,11 @@ LaunchedEffect(
         )
     }
 
+    val foregroundCandidate = ForegroundObjectSelector.select(detections)
     val foregroundObject = foregroundObjectTracker.observe(
-        ForegroundObjectSelector.select(detections),
+        foregroundCandidate,
         nowMs = nowElapsedMs
     )
-
-    if (!voiceAnnouncements) {
-        foregroundObjectTracker.reset()
-        obstacleAnnouncementMemory.reset()
-        return@LaunchedEffect
-    }
 
     // General scene narration is independent of the lower walking-corridor
     // obstacle filter. Safety-relevant objects remain handled by the alert path.
@@ -943,18 +994,19 @@ LaunchedEffect(
         prioritizedObstacles.none { it.detection.label == foregroundObject.label } &&
         !distanceCalibrationCaptureInProgress
     ) {
+        val foregroundEstimate = VisualDistanceEstimator.estimate(
+            label = foregroundObject.label,
+            normalizedBoxHeight = foregroundObject.normalizedBoxHeight,
+            calibration = distanceCalibration,
+            strideLengthMeters = strideLengthMeters
+        )
         val accepted = voiceAssistant.speak(
             SpeechLocalizer.localize(
                 label = foregroundObject.label,
                 direction = foregroundObject.direction,
                 language = speechLanguage,
                 distanceText = DistanceSpeechFormatter.format(
-                    estimate = VisualDistanceEstimator.estimate(
-                        label = foregroundObject.label,
-                        normalizedBoxHeight = foregroundObject.normalizedBoxHeight,
-                        calibration = distanceCalibration,
-                        strideLengthMeters = strideLengthMeters
-                    ),
+                    estimate = foregroundEstimate,
                     language = speechLanguage
                 )
             ),
@@ -967,7 +1019,58 @@ LaunchedEffect(
                 candidate = foregroundObject,
                 nowMs = nowElapsedMs
             )
+            foregroundDistanceUpdateTracker.markAnnounced(
+                candidate = foregroundObject,
+                estimate = foregroundEstimate,
+                nowMs = nowElapsedMs
+            )
             return@LaunchedEffect
+        }
+    }
+
+    // Once an object has been introduced, report only a material calibrated
+    // distance/step reduction. Small frame-to-frame changes remain silent.
+    if (
+        ttsReady &&
+        foregroundObject == null &&
+        foregroundCandidate != null &&
+        newItems.isEmpty() &&
+        prioritizedObstacles.none {
+            it.detection.label == foregroundCandidate.label
+        } &&
+        !distanceCalibrationCaptureInProgress
+    ) {
+        val estimate = VisualDistanceEstimator.estimate(
+            label = foregroundCandidate.label,
+            normalizedBoxHeight = foregroundCandidate.normalizedBoxHeight,
+            calibration = distanceCalibration,
+            strideLengthMeters = strideLengthMeters
+        )
+        if (
+            foregroundDistanceUpdateTracker.shouldAnnounce(
+                candidate = foregroundCandidate,
+                estimate = estimate,
+                nowMs = nowElapsedMs
+            )
+        ) {
+            val accepted = voiceAssistant.speak(
+                SpeechLocalizer.localize(
+                    label = foregroundCandidate.label,
+                    direction = foregroundCandidate.direction,
+                    language = speechLanguage,
+                    distanceText = DistanceSpeechFormatter.format(estimate, speechLanguage)
+                ),
+                flushQueue = true,
+                utteranceId = "guardian-object-distance-update"
+            )
+            if (accepted) {
+                foregroundDistanceUpdateTracker.markAnnounced(
+                    candidate = foregroundCandidate,
+                    estimate = estimate,
+                    nowMs = nowElapsedMs
+                )
+                return@LaunchedEffect
+            }
         }
     }
 
