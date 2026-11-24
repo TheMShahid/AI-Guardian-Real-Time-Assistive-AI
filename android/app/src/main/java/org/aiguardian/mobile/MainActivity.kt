@@ -297,9 +297,6 @@ private fun GuardianHome(
         mutableLongStateOf(0L)
     }
 
-    var announcedOpenSectors by remember {
-        mutableStateOf<Set<String>>(emptySet())
-    }
     var cameraRunning by remember { mutableStateOf(false) }
     var cameraError by remember { mutableStateOf<String?>(null) }
     var cameraPreviewView by remember {
@@ -442,7 +439,6 @@ val voiceAssistant = remember(context) {
                 (
                     utteranceId.startsWith("guardian-spatial-announcement") ||
                     utteranceId.startsWith("guardian-urgent-obstacle") ||
-                    utteranceId.startsWith("guardian-open-sector") ||
                     utteranceId.startsWith("guardian-object-narration")
                 )
             ) {
@@ -451,7 +447,6 @@ val voiceAssistant = remember(context) {
                     "Obstacle announcement playback failed; allowing retry"
                 )
                 obstacleAnnouncementMemory.reset()
-                announcedOpenSectors = emptySet()
                 if (utteranceId.startsWith("guardian-object-narration")) {
                     foregroundObjectTracker.reset()
                 }
@@ -574,7 +569,6 @@ val voiceAssistant = remember(context) {
     obstacleApproachTracker.reset()
     foregroundObjectTracker.reset()
     obstacleAnnouncementMemory.reset()
-    announcedOpenSectors = emptySet()
     detectionFrameSequence++
 
     cameraSessionId++
@@ -925,7 +919,6 @@ LaunchedEffect(
     if (!voiceAnnouncements) {
         foregroundObjectTracker.reset()
         obstacleAnnouncementMemory.reset()
-        announcedOpenSectors = emptySet()
         return@LaunchedEffect
     }
 
