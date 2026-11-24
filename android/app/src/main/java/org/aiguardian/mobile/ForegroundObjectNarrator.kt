@@ -69,47 +69,92 @@ internal object ForegroundObjectSelector {
 }
 
 /**
- * Requires repeated observations before narration and avoids repeating the same
- * continuously visible class. A caller marks an item only after TTS accepts it.
+ * Requires consecutive observations and suppresses repeat narration for the same
+ * label/direction while it remains in view. A new announcement is allowed only
+ * after the object has been absent for a meaningful interval.
+ *
+ * This is a visual-event key, not a physical object identity: a detector without
+ * tracking IDs cannot distinguish two identical objects in the same image sector.
  */
 internal class ForegroundObjectAnnouncementTracker(
-    private val requiredObservations: Int = 2
+    private val requiredObservations: Int = 2,
+    private val reannounceAfterAbsenceMs: Long = 5_000L,
+    private val maxObservationGapMs: Long = 1_500L,
+    private val maxMemoryMs: Long = 60_000L
 ) {
-    private var candidateLabel: String? = null
+    private var candidateKey: String? = null
     private var observationCount = 0
-    private var announcedLabel: String? = null
+    private var lastCandidateObservationAtMs = 0L
+    private val lastSeenAtMs = mutableMapOf<String, Long>()
+    private val announcedKeys = mutableSetOf<String>()
 
     init {
         require(requiredObservations >= 1)
+        require(reannounceAfterAbsenceMs > 0L)
+        require(maxObservationGapMs > 0L)
+        require(maxMemoryMs >= reannounceAfterAbsenceMs)
     }
 
-    fun observe(candidate: ForegroundObject?): ForegroundObject? {
+    fun observe(candidate: ForegroundObject?, nowMs: Long): ForegroundObject? {
+        require(nowMs >= 0L)
+
         if (candidate == null) {
-            candidateLabel = null
+            candidateKey = null
             observationCount = 0
+            pruneExpired(nowMs)
             return null
         }
 
-        if (candidate.label == candidateLabel) {
+        val key = key(candidate.label, candidate.direction)
+        val previousSeenAt = lastSeenAtMs[key]
+        if (previousSeenAt != null && nowMs - previousSeenAt >= reannounceAfterAbsenceMs) {
+            announcedKeys.remove(key)
+        }
+        lastSeenAtMs[key] = nowMs
+        pruneExpired(nowMs)
+
+        if (
+            key == candidateKey &&
+            nowMs >= lastCandidateObservationAtMs &&
+            nowMs - lastCandidateObservationAtMs <= maxObservationGapMs
+        ) {
             observationCount += 1
         } else {
-            candidateLabel = candidate.label
+            candidateKey = key
             observationCount = 1
         }
+        lastCandidateObservationAtMs = nowMs
 
         return candidate.takeIf {
-            observationCount >= requiredObservations &&
-                candidate.label != announcedLabel
+            observationCount >= requiredObservations && key !in announcedKeys
         }
     }
 
-    fun markAnnounced(label: String) {
-        announcedLabel = label.trim().lowercase()
+    fun markAnnounced(label: String, direction: String, nowMs: Long) {
+        require(nowMs >= 0L)
+        val key = key(label, direction)
+        announcedKeys += key
+        lastSeenAtMs[key] = nowMs
     }
 
     fun reset() {
-        candidateLabel = null
+        candidateKey = null
         observationCount = 0
-        announcedLabel = null
+        lastCandidateObservationAtMs = 0L
+        lastSeenAtMs.clear()
+        announcedKeys.clear()
     }
+
+    private fun pruneExpired(nowMs: Long) {
+        val expired = lastSeenAtMs.filterValues {
+            nowMs >= it && nowMs - it > maxMemoryMs
+        }.keys
+        expired.forEach { key ->
+            lastSeenAtMs.remove(key)
+            announcedKeys.remove(key)
+        }
+    }
+
+    private fun key(label: String, direction: String) =
+        "${label.trim().lowercase()}|${direction.trim().lowercase()}"
 }
