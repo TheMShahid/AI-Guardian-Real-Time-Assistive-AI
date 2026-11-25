@@ -9,7 +9,7 @@ class OpenPathGuidanceEngineTest {
     private fun evidence(
         left: Float = 0.90f,
         center: Float = 0.55f,
-        right: Float = 0.50f,
+        right: Float = 0.60f,
         blockedLeft: Float = 0.05f,
         blockedCenter: Float = 0.05f,
         blockedRight: Float = 0.05f,
