@@ -36,13 +36,13 @@ class OpenPathGuidanceEngineTest {
             OpenPathGuidanceEngine.Zone.FAR_LEFT ->
                 item.copy(visibleGroundRatio = left)
             OpenPathGuidanceEngine.Zone.LEFT ->
-                item.copy(visibleGroundRatio = left * 0.90f)
+                item.copy(visibleGroundRatio = left * 0.75f)
             OpenPathGuidanceEngine.Zone.CENTER ->
                 item.copy(visibleGroundRatio = center)
             OpenPathGuidanceEngine.Zone.RIGHT ->
                 item.copy(visibleGroundRatio = right)
             OpenPathGuidanceEngine.Zone.FAR_RIGHT ->
-                item.copy(visibleGroundRatio = right * 0.90f)
+                item.copy(visibleGroundRatio = right * 0.75f)
         }
     }
 
