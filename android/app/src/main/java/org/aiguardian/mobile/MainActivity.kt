@@ -349,6 +349,7 @@ var sceneInferenceStarted by remember {
     val foregroundObjectTracker = remember { ForegroundObjectAnnouncementTracker() }
     val cameraStartupObservationGate = remember { CameraStartupObservationGate() }
     val emptySceneAnnouncementTracker = remember { EmptySceneAnnouncementTracker() }
+    val unobservedSectorAnnouncementTracker = remember { UnobservedSectorAnnouncementTracker() }
     val foregroundDistanceUpdateTracker = remember { ForegroundDistanceUpdateTracker() }
     var historyEntries by remember {
     mutableStateOf(loadDetectionHistory(context))
@@ -516,6 +517,7 @@ val voiceAssistant = remember(context) {
         foregroundObjectTracker.reset()
         foregroundDistanceUpdateTracker.reset()
         emptySceneAnnouncementTracker.reset()
+        unobservedSectorAnnouncementTracker.reset()
         obstacleAnnouncementMemory.reset()
         sessionStartedAt = System.currentTimeMillis()
         sessionPeakCounts = emptyMap()
@@ -580,6 +582,7 @@ val voiceAssistant = remember(context) {
     foregroundObjectTracker.reset()
     foregroundDistanceUpdateTracker.reset()
     emptySceneAnnouncementTracker.reset()
+    unobservedSectorAnnouncementTracker.reset()
     obstacleAnnouncementMemory.reset()
     detectionFrameSequence++
 
@@ -897,6 +900,7 @@ LaunchedEffect(
         foregroundObjectTracker.reset()
         foregroundDistanceUpdateTracker.reset()
         emptySceneAnnouncementTracker.reset()
+        unobservedSectorAnnouncementTracker.reset()
         obstacleAnnouncementMemory.reset()
         return@LaunchedEffect
     }
@@ -918,6 +922,7 @@ LaunchedEffect(
         )
         foregroundObjectTracker.observe(null, nowElapsedMs)
         foregroundDistanceUpdateTracker.reset()
+        unobservedSectorAnnouncementTracker.reset()
 
         if (
             ttsReady &&
@@ -937,6 +942,13 @@ LaunchedEffect(
         return@LaunchedEffect
     }
 
+    val unobservedSectorCandidate = unobservedSectorAnnouncementTracker.observe(
+        candidateSectors = PathAwareObstacleAnalyzer
+            .sectorsWithoutRecognizedObstacles(detections)
+            .toSet(),
+        frameId = detectionFrameSequence,
+        nowMs = nowElapsedMs
+    )
     val prioritizedObstacles = PathAwareObstacleAnalyzer.analyze(detections)
     val currentKeys = prioritizedObstacles.map { obstacle ->
         "${obstacle.detection.label}|${obstacle.direction}"
@@ -1091,6 +1103,22 @@ LaunchedEffect(
     // Silence is intentional when no reliable obstacle/object event is present.
     // An unobserved sector is not evidence that the route is clear or safe.
     if (newItems.isEmpty()) {
+        if (unobservedSectorCandidate != null) {
+            val accepted = voiceAssistant.speak(
+                SpeechLocalizer.localizeUnobservedSector(
+                    unobservedSectorCandidate,
+                    speechLanguage
+                ),
+                flushQueue = false,
+                utteranceId = "guardian-unobserved-sector-status"
+            )
+            if (accepted) {
+                unobservedSectorAnnouncementTracker.markAnnounced(
+                    unobservedSectorCandidate,
+                    nowElapsedMs
+                )
+            }
+        }
         return@LaunchedEffect
     }
 
