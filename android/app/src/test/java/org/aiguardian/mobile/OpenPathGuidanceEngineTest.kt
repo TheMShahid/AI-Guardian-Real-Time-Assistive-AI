@@ -65,7 +65,7 @@ class OpenPathGuidanceEngineTest {
     @Test
     fun missingGroundEvidenceNeverProducesDirection() {
         val engine = OpenPathGuidanceEngine()
-        val weakEvidence = evidence(ground = 0.20f)
+        val weakEvidence = evidence().map { it.copy(visibleGroundRatio = 0.20f) }
         repeat(5) { frame ->
             assertEquals(
                 OpenPathGuidanceEngine.Status.NEED_MORE_EVIDENCE,
