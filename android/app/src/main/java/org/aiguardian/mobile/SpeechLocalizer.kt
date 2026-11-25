@@ -188,19 +188,19 @@ object SpeechLocalizer {
     fun localizeUnobservedSector(sector: String, language: String): String {
         return when (language) {
             "Urdu (Pakistan)" -> when (sector) {
-                "left" -> "بائیں جانب کوئی واضح رکاوٹ نظر نہیں آ رہی۔ پھر بھی آگے بڑھنے سے پہلے راستہ چیک کریں۔"
-                "right" -> "دائیں جانب کوئی واضح رکاوٹ نظر نہیں آ رہی۔ پھر بھی آگے بڑھنے سے پہلے راستہ چیک کریں۔"
-                else -> "سامنے کوئی واضح رکاوٹ نظر نہیں آ رہی۔ پھر بھی آگے بڑھنے سے پہلے راستہ چیک کریں۔"
+                "left" -> "کیمرے نے بائیں جانب کوئی معاونت یافتہ رکاوٹ شناخت نہیں کی۔ اس کا مطلب یہ نہیں کہ راستہ خالی یا محفوظ ہے۔ آگے بڑھنے سے پہلے راستہ چیک کریں۔"
+                "right" -> "کیمرے نے دائیں جانب کوئی معاونت یافتہ رکاوٹ شناخت نہیں کی۔ اس کا مطلب یہ نہیں کہ راستہ خالی یا محفوظ ہے۔ آگے بڑھنے سے پہلے راستہ چیک کریں۔"
+                else -> "کیمرے نے سامنے کوئی معاونت یافتہ رکاوٹ شناخت نہیں کی۔ اس کا مطلب یہ نہیں کہ راستہ خالی یا محفوظ ہے۔ آگے بڑھنے سے پہلے راستہ چیک کریں۔"
             }
             "Pashto (Afghanistan)" -> when (sector) {
-                "left" -> "چپ لوري ته څرګند خنډ نه ښکاري. بیا هم مخکې له تګ څخه لاره وګورئ."
-                "right" -> "ښي لوري ته څرګند خنډ نه ښکاري. بیا هم مخکې له تګ څخه لاره وګورئ."
-                else -> "مخې ته څرګند خنډ نه ښکاري. بیا هم مخکې له تګ څخه لاره وګورئ."
+                "left" -> "کمرې په چپ لوري کې د ملاتړ وړ خنډ ونه پېژاند. دا د لارې د خلاصون یا خوندي‌والي معنا نه لري. مخکې له تګ څخه لاره وګورئ."
+                "right" -> "کمرې په ښي لوري کې د ملاتړ وړ خنډ ونه پېژاند. دا د لارې د خلاصون یا خوندي‌والي معنا نه لري. مخکې له تګ څخه لاره وګورئ."
+                else -> "کمرې مخې ته د ملاتړ وړ خنډ ونه پېژاند. دا د لارې د خلاصون یا خوندي‌والي معنا نه لري. مخکې له تګ څخه لاره وګورئ."
             }
             else -> when (sector) {
-                "left" -> "I don't see a clear obstacle to your left. Please still check the way before moving."
-                "right" -> "I don't see a clear obstacle to your right. Please still check the way before moving."
-                else -> "I don't see a clear obstacle ahead. Please still check the way before moving."
+                "left" -> "No supported obstacle was detected on your left. This does not mean the route is clear or safe. Check the way before moving."
+                "right" -> "No supported obstacle was detected on your right. This does not mean the route is clear or safe. Check the way before moving."
+                else -> "No supported obstacle was detected ahead. This does not mean the route is clear or safe. Check the way before moving."
             }
         }
     }
