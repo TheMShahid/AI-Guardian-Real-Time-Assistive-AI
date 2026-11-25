@@ -33,14 +33,16 @@ class OpenPathGuidanceEngineTest {
         )
     ).map { item ->
         when (item.zone) {
-            OpenPathGuidanceEngine.Zone.FAR_LEFT,
+            OpenPathGuidanceEngine.Zone.FAR_LEFT ->
+                item.copy(visibleGroundRatio = left)
             OpenPathGuidanceEngine.Zone.LEFT ->
-                item.copy(visibleGroundRatio = if (left > 0f) left else 0f)
+                item.copy(visibleGroundRatio = left * 0.90f)
             OpenPathGuidanceEngine.Zone.CENTER ->
                 item.copy(visibleGroundRatio = center)
-            OpenPathGuidanceEngine.Zone.RIGHT,
-            OpenPathGuidanceEngine.Zone.FAR_RIGHT ->
+            OpenPathGuidanceEngine.Zone.RIGHT ->
                 item.copy(visibleGroundRatio = right)
+            OpenPathGuidanceEngine.Zone.FAR_RIGHT ->
+                item.copy(visibleGroundRatio = right * 0.90f)
         }
     }
 
