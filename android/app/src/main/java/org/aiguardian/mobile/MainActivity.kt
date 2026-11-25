@@ -441,7 +441,8 @@ val voiceAssistant = remember(context) {
                     utteranceId.startsWith("guardian-urgent-obstacle") ||
                     utteranceId.startsWith("guardian-object-narration") ||
                     utteranceId.startsWith("guardian-object-distance-update") ||
-                    utteranceId.startsWith("guardian-empty-scene-status")
+                    utteranceId.startsWith("guardian-empty-scene-status") ||
+                    utteranceId.startsWith("guardian-unobserved-sector-status")
                 )
             ) {
                 Log.w(
@@ -458,6 +459,9 @@ val voiceAssistant = remember(context) {
                 }
                 if (utteranceId.startsWith("guardian-empty-scene-status")) {
                     emptySceneAnnouncementTracker.reset()
+                }
+                if (utteranceId.startsWith("guardian-unobserved-sector-status")) {
+                    unobservedSectorAnnouncementTracker.reset()
                 }
             }
         }
