@@ -4,8 +4,8 @@
 |---|---|
 | Project | AI Guardian — Real-Time Assistive AI |
 | Document ID | ARCH-DEPTH-001 |
-| Version | 0.2 |
-| Status | Device investigation complete; depth adapter contract implemented; metric source pending |
+| Version | 0.3 |
+| Status | Device investigation complete; metric-depth sampler implemented; provider candidate selected for compatibility evaluation |
 | Last Updated | 2026-11-27 |
 | Target Platform | Android |
 | Current Camera Pipeline | CameraX ImageAnalysis + YOLO |
@@ -71,33 +71,46 @@ Constraints:
 
 Decision: do not select ARCore as the current handset's primary depth source.
 
-### 4.2 Monocular depth model
+### 4.2 Metric3D v2 ViT-S — LiteRT candidate
 
-A monocular model estimates relative or scale-ambiguous depth from one RGB image. Some models can produce metric-like outputs under their training assumptions, but generalization to this phone, camera, environment, and target objects must be demonstrated.
+A community-converted Metric3D v2 ViT-S LiteRT model is the leading candidate for a first on-device compatibility experiment. Its model card describes an absolute metric depth output in metres at 448×448, a 78 MB FP16 model, and Android use through the LiteRT CompiledModel GPU API. The documented input is ImageNet-normalized NCHW RGB; output is a 448×448 depth map in metres. The model card reports approximately 44 ms model inference on a Pixel 8a / Tensor G3, not on the RMX3834.
 
-The reference device has a Unisoc T612, Mali-G57 GPU, arm64-v8a ABI, and approximately 3.7 GiB reported total RAM. These specifications favour evaluating compact models and CPU/NNAPI-compatible paths before considering a large model. GPU delegate support and actual inference performance must be measured on-device; OpenGL ES 3.2 alone does not prove that a particular ML delegate is supported.
+Important constraints:
+- The published latency and accuracy are not transferable to the Unisoc T612 / Mali-G57 handset.
+- The conversion is a community export, not an official upstream Android release. It must be independently validated against the upstream model and measured targets.
+- The model card documents a canonical-camera focal-length correction (fx / 1000). Camera intrinsics therefore matter for accurate metric output; omitting them may leave systematic scale error.
+- The converter author describes Mali-specific fixes to the resize/upsampling path, but that is not proof that LiteRT CompiledModel GPU compilation and execution will work on this exact Mali-G57 driver.
+- A 78 MB model is only the weight size. Runtime activations, GPU buffers, YOLO, camera buffers, and app memory add to the actual footprint.
+- The model card lists BSD-2-Clause for Metric3D and Apache-2.0 for the DINOv2 backbone; verify the exact model artifact and notices before redistribution.
 
-Advantages:
-- Does not require ARCore certification or a second camera.
-- Can be integrated into the existing image pipeline as a separate inference adapter.
-- Can potentially run on a broader range of Android devices.
+Decision: test this candidate first only after camera-intrinsics and sensor inventory is recorded. Attempt GPU compilation on the physical phone, capture backend/errors and latency, and fall back to CPU only if measured performance and memory remain acceptable. Do not make Pixel 8a performance claims for RMX3834.
 
-Constraints:
-- May be computationally expensive on the reference handset.
-- Estimates can fail on reflective, transparent, textureless, dark, or unfamiliar surfaces.
-- Absolute scale and calibration may not transfer to the target device.
-- A plausible-looking depth map is not proof of metric accuracy.
-- Concurrent YOLO and depth inference can increase memory pressure, heat, battery use, and frame latency.
+References:
+- Metric3D v2 LiteRT model card and Android usage: https://huggingface.co/mlboydaisuke/Metric3D-v2-LiteRT
+- LiteRT Android samples: https://github.com/google-ai-edge/litert-samples
+- Upstream Metric3D: https://github.com/YvanYin/Metric3D
 
-Decision: evaluate lightweight candidates offline, then benchmark one candidate on the physical phone. Do not integrate model weights or announce metres until latency and error are measured on the target phone.
+### 4.3 Depth Anything V2 Metric Small
 
-### 4.3 Camera geometry and known-size ranging
+The official Depth Anything V2 metric-depth implementation provides a 24.8M-parameter Small encoder with separate indoor (Hypersim, up to 20 m) and outdoor (Virtual KITTI 2, up to 80 m) variants. Its Python inference code returns depth in metres. This is a useful independent metric-model baseline, but the official repository documents PyTorch inference rather than a ready-to-run Android LiteRT package. Exporting and validating the model for Android is additional engineering work.
+
+The ordinary Depth Anything V2 Small model and MiDaS Small LiteRT are relative-depth models; their output must not be treated as metres without a separately validated scale recovery method.
+
+Decision: retain as a secondary candidate if Metric3D LiteRT cannot compile or its domain error is unacceptable.
+
+References:
+- Official metric-depth implementation: https://github.com/DepthAnything/Depth-Anything-V2/tree/main/metric_depth
+- Metric Hypersim Small model: https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Hypersim-Small
+- Metric VKITTI Small model: https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-VKITTI-Small
+- MiDaS Small LiteRT output semantics: https://huggingface.co/litert-community/MiDaS-small
+
+### 4.4 Camera geometry and known-size ranging
 
 Camera intrinsics and known physical object dimensions can support range estimation for a known target under calibrated conditions. The current general-purpose object detector does not know the true physical dimensions of arbitrary chairs, people, bags, or vehicles.
 
 Decision: do not use assumed class dimensions as a general-purpose distance solution.
 
-### 4.4 Hardware depth sensors and stereo
+### 4.5 Hardware depth sensors and stereo
 
 A ToF sensor or calibrated stereo camera can provide more direct geometric evidence, but the reference handset's hardware must be inspected rather than inferred from its model family or camera count.
 
@@ -144,7 +157,7 @@ Depth alone does not establish a safe route. Safe navigation also requires free-
 
 1. Record device model, Android build, ARCore package/service availability, camera IDs, camera characteristics, and sensor inventory.
 2. Check ARCore installation and runtime Depth API support on the physical handset; do not rely on the public device list alone.
-3. If ARCore Depth is unavailable, benchmark compact monocular depth candidates using the existing camera frames.
+3. Attempt Metric3D LiteRT GPU compilation on the reference handset and record whether the backend supports all operators.
 4. Use measured target distances and a repeatable test protocol. Record absolute error, relative error, invalid-pixel rate, latency, frame alignment, and thermal/battery impact.
 5. Test multiple surfaces and objects, indoor/outdoor lighting, static and moving camera, and near/far ranges.
 6. Define conservative quality gates and fail-closed behaviour before enabling spoken range.
@@ -152,4 +165,4 @@ Depth alone does not establish a safe route. Safe navigation also requires free-
 
 ## 9. Next engineering action
 
-Inspect the Android camera characteristics and sensor inventory on RMX3834, then shortlist compact depth models with an available Android runtime/export path and compatible licence. Select a candidate only after checking input/output semantics, metric-scale claims, model size, operator support, and expected RAM use alongside YOLO. The next implementation increment should add a provider behind the metric-depth contract and a device benchmark harness; spoken numeric distance remains disabled until measured validation passes.
+Inspect camera IDs, focal lengths, sensor inventory, and GPU/runtime compatibility on RMX3834. Then create a small on-device Metric3D LiteRT smoke-test path, initially outside the live YOLO loop, so model compilation and latency can be measured without destabilizing camera narration. Only after that should depth inference be scheduled alongside YOLO.
