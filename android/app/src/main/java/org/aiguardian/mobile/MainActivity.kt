@@ -186,6 +186,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Read-only hardware inventory for selecting a compatible metric-depth provider.
+        // This does not open the camera or start sensor sampling.
+        runCatching { DeviceCapabilityInspector.inspect(this) }
+            .onSuccess { report -> Log.i("GuardianDevice", report) }
+            .onFailure { error -> Log.w("GuardianDevice", "Capability inspection failed", error) }
+
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
         setContent {
