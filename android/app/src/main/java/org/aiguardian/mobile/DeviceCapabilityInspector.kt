@@ -105,7 +105,7 @@ object DeviceCapabilityInspector {
         }
 
         val hasDepth = sensors.any {
-            it.type == Sensor.TYPE_DEPTH || it.type == Sensor.TYPE_DYNAMIC_SENSOR
+            it.type == Sensor.TYPE_DEPTH
         }
         output.appendLine("depth_or_dynamic_sensor_present=$hasDepth")
     }
