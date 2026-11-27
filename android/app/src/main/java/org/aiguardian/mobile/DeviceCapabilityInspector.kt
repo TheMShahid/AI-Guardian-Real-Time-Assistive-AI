@@ -104,10 +104,9 @@ object DeviceCapabilityInspector {
             )
         }
 
-        val hasDepth = sensors.any {
-            it.type == Sensor.TYPE_DEPTH
-        }
-        output.appendLine("depth_or_dynamic_sensor_present=$hasDepth")
+        // Android's Sensor API does not define a general-purpose TYPE_DEPTH.
+        // Camera depth support is reported through REQUEST_AVAILABLE_CAPABILITIES_DEPTH_OUTPUT.
+        output.appendLine("depth_sensor_detection=use_camera_DEPTH_OUTPUT_capability")
     }
 
     private fun hardwareLevelName(level: Int): String = when (level) {
